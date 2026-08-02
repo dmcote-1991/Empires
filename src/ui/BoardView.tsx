@@ -26,8 +26,7 @@ export function BoardView({ gameState, onSelectTerritory }: BoardViewProps) {
         style={{ borderColor: owner ? colorMap[owner.color] : undefined }}
         onClick={() => onSelectTerritory?.(territory.id)}
       >
-        <span>{territory.id}</span>
-        <span>{territory.isMine ? '⛏️' : territory.level}</span>
+        <span>{territory.isMine ? '⛏️' : territory.owner ? territory.level : ''}</span>
       </button>
     );
   };

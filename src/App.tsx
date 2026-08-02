@@ -19,6 +19,14 @@ function App() {
   const [territoryCount, setTerritoryCount] = useState(200);
   const [mineCount, setMineCount] = useState(4);
 
+  const normalizedPlayerConfigs = useMemo(() => {
+    const nextConfigs = Array.from({ length: playerCount }, (_, index) => ({
+      name: playerConfigs[index]?.name?.trim() || `Player ${index + 1}`,
+      color: playerConfigs[index]?.color ?? COLORS[index % COLORS.length],
+    } as PlayerConfig));
+    return nextConfigs;
+  }, [playerCount, playerConfigs]);
+
   const summary = useMemo(() => (gameState ? getGameSummary(gameState) : null), [gameState]);
 
   useEffect(() => {
@@ -35,7 +43,7 @@ function App() {
   }, [gameState]);
 
   const startGame = () => {
-    const validPlayers = playerConfigs.slice(0, playerCount).map((player, index) => ({
+    const validPlayers = normalizedPlayerConfigs.map((player, index) => ({
       ...player,
       name: player.name.trim() || `Player ${index + 1}`,
     }));
@@ -48,7 +56,16 @@ function App() {
   };
 
   const updatePlayer = (index: number, field: keyof PlayerConfig, value: string) => {
-    setPlayerConfigs((current) => current.map((player, playerIndex) => (playerIndex === index ? { ...player, [field]: value } : player)));
+    setPlayerConfigs((current) => {
+      const next = Array.from({ length: Math.max(current.length, playerCount) }, (_, playerIndex) => {
+        const existing = current[playerIndex];
+        if (playerIndex < current.length) {
+          return { ...existing, [field]: playerIndex === index ? value : existing[field] };
+        }
+        return { name: `Player ${playerIndex + 1}`, color: COLORS[playerIndex % COLORS.length], [field]: playerIndex === index ? value : undefined } as PlayerConfig;
+      });
+      return next.filter((player): player is PlayerConfig => Boolean(player));
+    });
   };
 
   const handleSelectTerritory = (territoryId: string) => {
@@ -82,7 +99,7 @@ function App() {
       <div className="panel">
         {Array.from({ length: playerCount }).map((_, index) => (
           <div key={index} className="player-config">
-            <input value={playerConfigs[index]?.name ?? ''} onChange={(event) => updatePlayer(index, 'name', event.target.value)} />
+            <input value={playerConfigs[index]?.name ?? `Player ${index + 1}`} onChange={(event) => updatePlayer(index, 'name', event.target.value)} />
             <select value={playerConfigs[index]?.color ?? COLORS[index % COLORS.length]} onChange={(event) => updatePlayer(index, 'color', event.target.value)}>
               {COLORS.map((color) => <option key={color} value={color}>{color}</option>)}
             </select>

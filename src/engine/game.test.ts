@@ -54,7 +54,19 @@ describe('Empire of Gold engine', () => {
     expect(validStarting.length).toBeGreaterThanOrEqual(gameState.players.length);
   });
 
-  it('allows a player to claim an adjacent territory and advances the turn', () => {
+  it('does not assign starting territories automatically', () => {
+    const gameState = createInitialGameState({
+      playerConfigs: [{ name: 'A', color: 'Red' }, { name: 'B', color: 'Blue' }],
+      territoryCount: 220,
+      mineCount: 4,
+      rng: makeRng(11),
+    });
+
+    expect(gameState.players.every((player) => player.territoryIds.length === 0)).toBe(true);
+    expect(gameState.board.territories.every((territory) => territory.owner === null)).toBe(true);
+  });
+
+  it('allows a player to claim a starting territory on their first turn', () => {
     const gameState = createInitialGameState({
       playerConfigs: [{ name: 'A', color: 'Red' }, { name: 'B', color: 'Blue' }],
       territoryCount: 220,
@@ -63,10 +75,7 @@ describe('Empire of Gold engine', () => {
     });
 
     const currentPlayerId = gameState.turn.order[gameState.turn.currentPlayerIndex];
-    const player = gameState.players.find((entry) => entry.id === currentPlayerId)!;
-    const target = gameState.board.territories.find((territory) => {
-      return territory.owner === null && territory.isMine === false && territory.neighbors.some((neighborId) => player.territoryIds.includes(neighborId));
-    });
+    const target = gameState.board.territories.find((territory) => territory.owner === null && territory.isMine === false);
 
     expect(target).toBeDefined();
 

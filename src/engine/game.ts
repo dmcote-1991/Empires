@@ -68,32 +68,7 @@ export const createInitialGameState = (options: {
     return createInitialGameState({ ...options, rng });
   }
 
-  const assignedTerritories = new Set<string>();
-  const nextPlayers = players.map((player) => {
-    const candidate = validStartingTerritories.find((territory) => !assignedTerritories.has(territory.id));
-    if (!candidate) {
-      return player;
-    }
-    assignedTerritories.add(candidate.id);
-    return {
-      ...player,
-      territoryIds: [candidate.id],
-    };
-  });
-
-  const nextBoard = {
-    ...state.board,
-    territories: state.board.territories.map((territory) => {
-      const ownerPlayer = nextPlayers.find((player) => player.territoryIds.includes(territory.id));
-      return ownerPlayer ? { ...territory, owner: ownerPlayer.id } : territory;
-    }),
-  };
-
-  return {
-    ...state,
-    board: nextBoard,
-    players: nextPlayers,
-  };
+  return state;
 };
 
 export const getGameSummary = (state: GameState) => ({
@@ -158,8 +133,9 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
     if (!target || target.owner || target.isMine) {
       return { success: false, reason: 'Invalid territory claim', state };
     }
-    const validClaim = target.neighbors.some((neighborId) => currentPlayer.territoryIds.includes(neighborId));
-    if (!validClaim && currentPlayer.territoryIds.length > 0) {
+    const isStartingTurn = currentPlayer.territoryIds.length === 0;
+    const validClaim = isStartingTurn || target.neighbors.some((neighborId) => currentPlayer.territoryIds.includes(neighborId));
+    if (!validClaim) {
       return { success: false, reason: 'Territory must be adjacent to owned territory', state };
     }
 
