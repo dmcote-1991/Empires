@@ -33,3 +33,6 @@ button { cursor: pointer; }
 .sidebar { display: flex; flex-direction: column; gap: 12px; }
 .button-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .player-card { border: 1px solid #374151; border-radius: 10px; padding: 8px; background: #0f172a; }
+.board-column { display: flex; flex-direction: column; gap: 12px; }
+.action-panel { display: flex; flex-direction: column; gap: 8px; background: rgba(17,24,39,0.9); border: 1px solid #374151; border-radius: 16px; padding: 16px; }
+.action-panel button { border: none; border-radius: 8px; background: #2563eb; color: white; padding: 8px 12px; }

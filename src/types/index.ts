@@ -67,6 +67,13 @@ export interface Move {
   payload?: Record<string, unknown>;
 }
 
+export type ActionName = 'claim' | 'buy' | 'forceBuy' | 'sell' | 'upgrade' | 'produce' | 'skip';
+
+export interface AvailableAction {
+  type: ActionName;
+  label: string;
+}
+
 export interface ActionResult {
   success: boolean;
   reason?: string;

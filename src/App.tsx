@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { createInitialGameState, executeGameAction, getGameSummary } from './engine/game';
+import { createInitialGameState, executeGameAction, getAvailableActions, getGameSummary } from './engine/game';
 import { loadGameState, saveGameState } from './engine/save';
 import { BoardView } from './ui/BoardView';
 import { Sidebar } from './ui/Sidebar';
@@ -18,6 +18,7 @@ function App() {
   const [playerCount, setPlayerCount] = useState(2);
   const [territoryCount, setTerritoryCount] = useState(200);
   const [mineCount, setMineCount] = useState(4);
+  const [selectedTerritoryId, setSelectedTerritoryId] = useState<string | null>(null);
 
   const normalizedPlayerConfigs = useMemo(() => {
     const nextConfigs = Array.from({ length: playerCount }, (_, index) => ({
@@ -69,12 +70,17 @@ function App() {
   };
 
   const handleSelectTerritory = (territoryId: string) => {
+    setSelectedTerritoryId(territoryId);
+  };
+
+  const handleAction = (type: 'claim' | 'buy' | 'forceBuy' | 'sell' | 'upgrade' | 'produce' | 'skip', territoryId: string) => {
     if (!gameState) {
       return;
     }
-    const result = executeGameAction(gameState, { type: 'claim', targetTerritoryId: territoryId });
+    const result = executeGameAction(gameState, { type, targetTerritoryId: territoryId });
     if (result.success) {
       setGameState(result.state);
+      setSelectedTerritoryId(null);
     }
   };
 
@@ -124,7 +130,19 @@ function App() {
         </div>
       </header>
       <main className="main-layout">
-        <BoardView gameState={gameState} onSelectTerritory={handleSelectTerritory} />
+        <div className="board-column">
+          <BoardView gameState={gameState} onSelectTerritory={handleSelectTerritory} />
+          {selectedTerritoryId && (
+            <div className="action-panel">
+              <h3>Actions</h3>
+              {getAvailableActions(gameState, selectedTerritoryId).map((action) => (
+                <button key={action.type} onClick={() => handleAction(action.type, selectedTerritoryId)}>
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <Sidebar gameState={gameState} onNewGame={() => setGameState(null)} onSaveGame={() => saveGameState(gameState)} onLoadGame={() => {
           const saved = loadGameState();
           if (saved) {

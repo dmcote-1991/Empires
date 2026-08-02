@@ -85,6 +85,66 @@ describe('Empire of Gold engine', () => {
     expect(result.state.turn.currentPlayerIndex).not.toBe(gameState.turn.currentPlayerIndex);
   });
 
+  it('allows a player to claim an adjacent mine territory after starting', () => {
+    const state: any = {
+      board: {
+        territories: [
+          { id: 'a', owner: 'player-1', level: 1, neighbors: ['b'], isMine: false },
+          { id: 'b', owner: null, level: 1, neighbors: ['a'], isMine: true },
+        ],
+        mines: [{ id: 'mine-1', territoryId: 'b', efficiency: 1 }],
+        dimensions: { rows: 1, cols: 2 },
+      },
+      players: [
+        { id: 'player-1', name: 'A', color: 'Red', gold: 0, eliminated: false, territoryIds: ['a'], mineIds: [] },
+        { id: 'player-2', name: 'B', color: 'Blue', gold: 0, eliminated: false, territoryIds: [], mineIds: [] },
+      ],
+      economy: { totalGold: 0, levelOneValue: 1, mineEfficiency: 1 },
+      turn: { currentPlayerIndex: 0, round: 1, order: ['player-1', 'player-2'] },
+      settings: { territoryCount: 2, mineCount: 1 },
+    };
+
+    const result = executeGameAction(state, { type: 'claim', targetTerritoryId: 'b' });
+    expect(result.success).toBe(true);
+    expect(result.state.board.territories.find((territory: any) => territory.id === 'b')?.owner).toBe('player-1');
+  });
+
+  it('allows a player to buy an adjacent territory owned by another player', () => {
+    const gameState = createInitialGameState({
+      playerConfigs: [{ name: 'A', color: 'Red' }, { name: 'B', color: 'Blue' }],
+      territoryCount: 220,
+      mineCount: 4,
+      rng: makeRng(17),
+    });
+
+    const playerA = gameState.players[0];
+    const playerB = gameState.players[1];
+    const ownedTerritory = gameState.board.territories.find((territory) => territory.owner === playerA.id)!;
+    const target = gameState.board.territories.find((territory) => territory.owner === playerB.id && territory.neighbors.includes(ownedTerritory.id));
+
+    expect(target).toBeDefined();
+
+    const result = executeGameAction(gameState, { type: 'buy', targetTerritoryId: target!.id });
+    expect(result.success).toBe(true);
+    expect(result.state.board.territories.find((territory) => territory.id === target!.id)?.owner).toBe(playerA.id);
+  });
+
+  it('allows a player to upgrade an owned territory', () => {
+    const gameState = createInitialGameState({
+      playerConfigs: [{ name: 'A', color: 'Red' }, { name: 'B', color: 'Blue' }],
+      territoryCount: 220,
+      mineCount: 4,
+      rng: makeRng(19),
+    });
+
+    const playerA = gameState.players[0];
+    const ownedTerritory = gameState.board.territories.find((territory) => territory.owner === playerA.id)!;
+
+    const result = executeGameAction(gameState, { type: 'upgrade', targetTerritoryId: ownedTerritory.id });
+    expect(result.success).toBe(true);
+    expect(result.state.board.territories.find((territory) => territory.id === ownedTerritory.id)?.level).toBe(2);
+  });
+
   it('calculates fair values and upgrade costs from the economy', () => {
     const gameState = createInitialGameState({
       playerConfigs: [{ name: 'A', color: 'Red' }, { name: 'B', color: 'Blue' }],
