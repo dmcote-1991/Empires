@@ -9,7 +9,7 @@ const COLORS = ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple'];
 
 const defaultPlayerConfigs = (): PlayerConfig[] => [
   { name: 'Player 1', color: 'Red' },
-  { name: 'Player 2', color: 'Blue' },
+  { name: 'Player 2', color: 'Orange' },
 ];
 
 function App() {
