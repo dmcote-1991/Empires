@@ -284,10 +284,18 @@ function cloneState(state: GameState): GameState {
   return {
     ...state,
     turn: { ...state.turn },
-    players: state.players.map((player) => ({ ...player })),
+    economy: { ...state.economy},
+    players: state.players.map((player) => ({ 
+      ...player, 
+      territoryIds: [...player.territoryIds],
+      mineIds: [...player.mineIds], 
+    })),
     board: {
       ...state.board,
-      territories: state.board.territories.map((territory) => ({ ...territory })),
+      territories: state.board.territories.map((territory) => ({ 
+        ...territory,
+        neighbors: [...territory.neighbors],
+      })),
       mines: state.board.mines.map((mine) => ({ ...mine })),
     },
   };
