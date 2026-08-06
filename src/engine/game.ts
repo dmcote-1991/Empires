@@ -248,7 +248,16 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
       return { success: false, reason: 'Invalid produce action', state };
     }
     const nextState = cloneState(state);
-    nextState.economy.totalGold += 10000 * nextState.economy.mineEfficiency;
+    const goldProduced = 10000 * nextState.economy.mineEfficiency;
+    // Add to the game's total gold
+    nextState.economy.totalGold += goldProduced;
+    // Add to the current player's gold
+    const player = nextState.players.find(
+      (player) => player.id === currentPlayer.id
+    );
+    if (player) {
+      player.gold += goldProduced;
+    }
     nextState.turn.currentPlayerIndex = (nextState.turn.currentPlayerIndex + 1) % nextState.players.length;
     return { success: true, state: nextState };
   }
