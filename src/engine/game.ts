@@ -122,6 +122,26 @@ export const getTerritoryFairValue = (territory: Territory, state: GameState): n
   return territory.level * state.economy.levelOneValue;
 };
 
+function getMineProduction(
+  state: GameState,
+  playerId: string
+): number {
+  const playerMineCount = state.board.territories.filter(
+    (territory) =>
+      territory.owner === playerId && territory.isMine
+  ).length;
+
+  let returnValue = Math.round(
+    (10000 * state.economy.mineEfficiency) /
+      (state.settings.mineCount * playerMineCount)
+  );
+  if (playerMineCount > 1) {
+    returnValue = Math.round(returnValue * 1.9);
+  }
+
+  return returnValue;
+}
+
 export const getAvailableActions = (state: GameState, territoryId: string): AvailableAction[] => {
   const currentPlayerId = state.turn.order[state.turn.currentPlayerIndex];
   const currentPlayer = state.players.find((player) => player.id === currentPlayerId);
@@ -141,22 +161,22 @@ export const getAvailableActions = (state: GameState, territoryId: string): Avai
   }
 
   if (territory.owner && territory.owner !== currentPlayer.id && !territory.isMine) {
-    actions.push({ type: 'buy', label: 'Buy territory' });
-    actions.push({ type: 'forceBuy', label: 'Force buy territory' });
+    actions.push({ type: 'buy', label: `Buy territory (Asking Price: ${state.economy.levelOneValue * territory.level} Gold)` });
+    actions.push({ type: 'forceBuy', label: `Force buy territory (For: ${(state.economy.levelOneValue * territory.level) * 400} Gold)` });
     return actions;
   }
 
   if (territory.owner === currentPlayer.id && !territory.isMine) {
-    actions.push({ type: 'upgrade', label: 'Upgrade territory' });
+    actions.push({ type: 'upgrade', label: `Upgrade territory (Cost: ${state.economy.levelOneValue} Gold)` });
     const adjacentOwned = state.board.territories.filter((entry) => entry.owner === currentPlayer.id && entry.id !== territory.id && territory.neighbors.includes(entry.id));
     if (adjacentOwned.length > 0) {
-      actions.push({ type: 'sell', label: 'Sell to adjacent player' });
+      actions.push({ type: 'sell', label: `Sell to adjacent player (Price: ${state.economy.levelOneValue * territory.level} Gold)` });
     }
     return actions;
   }
 
   if (territory.owner === currentPlayer.id && territory.isMine) {
-    actions.push({ type: 'produce', label: 'Produce from mine' });
+    actions.push({ type: 'produce', label: `Produce from mine (Production: ${getMineProduction(state, currentPlayerId)})` });
   }
 
   actions.push({ type: 'skip', label: 'Skip turn' });
@@ -249,7 +269,7 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
       return { success: false, reason: 'Invalid produce action', state };
     }
     const nextState = cloneState(state);
-    const goldProduced = 10000 * nextState.economy.mineEfficiency;
+    const goldProduced = getMineProduction(nextState, currentPlayerId);
     // Add to the game's total gold
     nextState.economy.totalGold += goldProduced;
     // Recalculate level one territory value
