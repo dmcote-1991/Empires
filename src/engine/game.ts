@@ -21,7 +21,7 @@ export const createInitialGameState = (options: {
     return {
       ...territory,
       isMine,
-      level: isMine ? 1 : 1,
+      level: 1,
       owner: null,
     } satisfies Territory;
   });
@@ -33,7 +33,6 @@ export const createInitialGameState = (options: {
     gold: 0,
     eliminated: false,
     territoryIds: [],
-    mineIds: [],
   }));
 
   const boardWithMines: Board = {
@@ -297,7 +296,6 @@ function cloneState(state: GameState): GameState {
     players: state.players.map((player) => ({ 
       ...player, 
       territoryIds: [...player.territoryIds],
-      mineIds: [...player.mineIds], 
     })),
     board: {
       ...state.board,

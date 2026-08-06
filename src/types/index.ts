@@ -12,7 +12,6 @@ export interface Player {
   gold: number;
   eliminated: boolean;
   territoryIds: string[];
-  mineIds: string[];
 }
 
 export interface Territory {

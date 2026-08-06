@@ -28,7 +28,15 @@ export function Sidebar({ gameState, onNewGame, onSaveGame, onLoadGame }: Sideba
             <div>Color: {player.color}</div>
             <div>Gold: {player.gold}</div>
             <div>Territories: {player.territoryIds.length}</div>
-            <div>Mines: {player.mineIds.length}</div>
+            <div>
+              Mines: {' '}
+              {
+                gameState.board.territories.filter(
+                  (territory) => 
+                    territory.owner === player.id && territory.isMine
+                ).length
+              }
+            </div>
           </div>
         ))}
       </div>
