@@ -41,9 +41,11 @@ export const createInitialGameState = (options: {
     dimensions: board.dimensions,
   };
 
+  const totalGold = 0
+  const nonMineTerritoryCount = territories.filter((t) => !t.isMine).length;
   const economy: Economy = {
-    totalGold: 0,
-    levelOneValue: 1,
+    totalGold,
+    levelOneValue: totalGold / Math.max(1, nonMineTerritoryCount),
     mineEfficiency: 1,
   };
 
@@ -250,6 +252,13 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
     const goldProduced = 10000 * nextState.economy.mineEfficiency;
     // Add to the game's total gold
     nextState.economy.totalGold += goldProduced;
+    // Recalculate level one territory value
+    const nonMineTerritoryCount = nextState.board.territories.filter(
+      (territory) => !territory.isMine
+    ).length;
+    nextState.economy.levelOneValue = Math.round(
+      nextState.economy.totalGold / Math.max(1, nonMineTerritoryCount)
+    );
     // Add to the current player's gold
     const player = nextState.players.find(
       (player) => player.id === currentPlayer.id
