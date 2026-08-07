@@ -19,6 +19,10 @@ function App() {
   const [territoryCount, setTerritoryCount] = useState(200);
   const [mineCount, setMineCount] = useState(4);
   const [selectedTerritoryId, setSelectedTerritoryId] = useState<string | null>(null);
+  const [pendingSale, setPendingSale] = useState<{
+  territoryId: string;
+  buyerPlayerId: string;
+} | null>(null);
 
   const normalizedPlayerConfigs = useMemo(() => {
     const nextConfigs = Array.from({ length: playerCount }, (_, index) => ({
@@ -73,15 +77,60 @@ function App() {
     setSelectedTerritoryId(territoryId);
   };
 
-  const handleAction = (type: 'claim' | 'buy' | 'forceBuy' | 'sell' | 'upgrade' | 'produce' | 'skip', territoryId: string) => {
+  const handleAction = (
+    type: 'claim' | 'buy' | 'forceBuy' | 'sell' | 'upgrade' | 'produce' | 'skip',
+    territoryId: string,
+    buyerPlayerId?: string
+  ) => {
     if (!gameState) {
       return;
     }
-    const result = executeGameAction(gameState, { type, targetTerritoryId: territoryId });
+
+    const result = executeGameAction(gameState, {
+      type,
+      targetTerritoryId: territoryId,
+      payload: buyerPlayerId
+        ? { buyerPlayerId }
+        : undefined,
+    });
+
     if (result.success) {
       setGameState(result.state);
       setSelectedTerritoryId(null);
     }
+  };
+
+  const getSellBuyers = (territoryId: string) => {
+    if (!gameState) {
+      return [];
+    }
+
+    const territory = gameState.board.territories.find(
+      (territory) => territory.id === territoryId
+    );
+
+    if (!territory) {
+      return [];
+    }
+
+    const buyerIds = new Set<string>();
+
+    territory.neighbors.forEach((neighborId) => {
+      const neighbor = gameState.board.territories.find(
+        (territory) => territory.id === neighborId
+      );
+
+      if (
+        neighbor?.owner &&
+        neighbor.owner !== gameState.players[gameState.turn.currentPlayerIndex].id
+      ) {
+        buyerIds.add(neighbor.owner);
+      }
+    });
+
+    return gameState.players.filter((player) =>
+      buyerIds.has(player.id)
+    );
   };
 
   const renderSetup = () => (
@@ -136,12 +185,104 @@ function App() {
             <div className="action-panel">
               <h3>Actions</h3>
               {getAvailableActions(gameState, selectedTerritoryId).map((action) => (
-                <button key={action.type} onClick={() => handleAction(action.type, selectedTerritoryId)}>
-                  {action.label}
-                </button>
+                action.type === 'sell' ? (
+                  getSellBuyers(selectedTerritoryId)
+                    .filter((player) => {
+                      const territory = gameState.board.territories.find(
+                        (territory) => territory.id === selectedTerritoryId
+                      );
+
+                      if (!territory) {
+                        return false;
+                      }
+
+                      const price = gameState.economy.levelOneValue * territory.level;
+
+                      return player.gold >= price;
+                    })
+                    .map((player) => {
+                      const territory = gameState.board.territories.find(
+                        (territory) => territory.id === selectedTerritoryId
+                      );
+
+                      const price = territory
+                        ? gameState.economy.levelOneValue * territory.level
+                        : 0;
+
+                      return (
+                        <button
+                          key={`${action.type}-${player.id}`}
+                          onClick={() =>
+                            setPendingSale({
+                              territoryId: selectedTerritoryId,
+                              buyerPlayerId: player.id,
+                            })
+                          }
+                        >
+                          Sell to {player.name} (Price: {price} Gold)
+                        </button>
+                      );
+                    })
+                ) : (
+                  <button
+                    key={action.type}
+                    onClick={() =>
+                      handleAction(action.type, selectedTerritoryId)
+                    }
+                  >
+                    {action.label}
+                  </button>
+                )
               ))}
             </div>
           )}
+
+          {pendingSale && (
+            <div>
+              {(() => {
+                const buyer = gameState.players.find(
+                  (player) => player.id === pendingSale.buyerPlayerId
+                );
+
+                const territory = gameState.board.territories.find(
+                  (territory) => territory.id === pendingSale.territoryId
+                );
+
+                const price = territory
+                  ? gameState.economy.levelOneValue * territory.level
+                  : 0;
+
+                return (
+                  <>
+                    <p>
+                      {buyer?.name} wants to buy this territory for {price} Gold.
+                      Accept?
+                    </p>
+
+                    <button
+                      onClick={() => {
+                        handleAction(
+                          'sell',
+                          pendingSale.territoryId,
+                          pendingSale.buyerPlayerId
+                        );
+                        setPendingSale(null);
+                      }}
+                    >
+                      Accept
+                    </button>
+
+                    <button
+                      onClick={() => setPendingSale(null)}
+                    >
+                      Deny
+                    </button>
+                  </>
+                );
+              })()}
+            </div>
+          )}
+
         </div>
         <Sidebar gameState={gameState} onNewGame={() => setGameState(null)} onSaveGame={() => saveGameState(gameState)} onLoadGame={() => {
           const saved = loadGameState();

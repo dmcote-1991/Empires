@@ -142,6 +142,31 @@ function getMineProduction(
   return returnValue;
 }
 
+function getEligibleBuyers(
+  state: GameState,
+  territory: Territory,
+  currentPlayerId: string
+): Player[] {
+  const buyerIds = new Set<string>();
+
+  territory.neighbors.forEach((neighborId) => {
+    const neighbor = state.board.territories.find(
+      (territory) => territory.id === neighborId
+    );
+
+    if (
+      neighbor?.owner &&
+      neighbor.owner !== currentPlayerId
+    ) {
+      buyerIds.add(neighbor.owner);
+    }
+  });
+
+  return state.players.filter((player) =>
+    buyerIds.has(player.id)
+  );
+}
+
 export const getAvailableActions = (state: GameState, territoryId: string): AvailableAction[] => {
   const currentPlayerId = state.turn.order[state.turn.currentPlayerIndex];
   const currentPlayer = state.players.find((player) => player.id === currentPlayerId);
@@ -175,10 +200,10 @@ export const getAvailableActions = (state: GameState, territoryId: string): Avai
         label: `Upgrade territory (Cost: ${upgradeCost} Gold)`
       });
     }
-    
+
     const adjacentOwned = state.board.territories.filter((entry) => entry.owner === currentPlayer.id && entry.id !== territory.id && territory.neighbors.includes(entry.id));
     if (adjacentOwned.length > 0) {
-      actions.push({ type: 'sell', label: `Sell to adjacent player (Price: ${state.economy.levelOneValue * territory.level} Gold)` });
+      actions.push({ type: 'sell', label: `Sell territory (Price: ${state.economy.levelOneValue * territory.level} Gold)` });
     }
     return actions;
   }
@@ -331,14 +356,84 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
   }
 
   if (move.type === 'sell' && move.targetTerritoryId) {
-    const target = state.board.territories.find((territory) => territory.id === move.targetTerritoryId);
+    const target = state.board.territories.find(
+      (territory) => territory.id === move.targetTerritoryId
+    );
+
     if (!target || target.owner !== currentPlayer.id || target.isMine) {
       return { success: false, reason: 'Invalid sell action', state };
     }
+
+    const buyerPlayerId = move.payload?.buyerPlayerId;
+
+    if (typeof buyerPlayerId !== 'string') {
+      return { success: false, reason: 'No buyer selected', state };
+    }
+
+    const buyer = state.players.find(
+      (player) => player.id === buyerPlayerId
+    );
+
+    if (!buyer) {
+      return { success: false, reason: 'Buyer not found', state };
+    }
+
+    const eligibleBuyers = getEligibleBuyers(
+      state,
+      target,
+      currentPlayer.id
+    );
+
+    if (!eligibleBuyers.some((player) => player.id === buyerPlayerId)) {
+      return { success: false, reason: 'Buyer is not adjacent', state };
+    }
+
+    const salePrice = state.economy.levelOneValue * target.level;
+
+    if (buyer.gold < salePrice) {
+      return { success: false, reason: 'Buyer cannot afford territory', state };
+    }
+
     const nextState = cloneState(state);
-    nextState.board.territories = nextState.board.territories.map((territory) => (territory.id === target.id ? { ...territory, owner: null } : territory));
-    nextState.players = nextState.players.map((player) => (player.id === currentPlayer.id ? { ...player, territoryIds: player.territoryIds.filter((territoryId) => territoryId !== target.id) } : player));
-    nextState.turn.currentPlayerIndex = (nextState.turn.currentPlayerIndex + 1) % nextState.players.length;
+
+    // Transfer ownership
+    nextState.board.territories = nextState.board.territories.map(
+      (territory) =>
+        territory.id === target.id
+          ? { ...territory, owner: buyerPlayerId }
+          : territory
+    );
+
+    // Transfer gold and update territory lists
+    nextState.players = nextState.players.map((player) => {
+      if (player.id === currentPlayer.id) {
+        return {
+          ...player,
+          gold: player.gold + salePrice,
+          territoryIds: player.territoryIds.filter(
+            (territoryId) => territoryId !== target.id
+          ),
+        };
+      }
+
+      if (player.id === buyerPlayerId) {
+        return {
+          ...player,
+          gold: player.gold - salePrice,
+          territoryIds: [
+            ...player.territoryIds,
+            target.id,
+          ],
+        };
+      }
+
+      return player;
+    });
+
+    nextState.turn.currentPlayerIndex =
+      (nextState.turn.currentPlayerIndex + 1) %
+      nextState.players.length;
+
     return { success: true, state: nextState };
   }
 
