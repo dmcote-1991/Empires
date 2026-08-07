@@ -167,7 +167,15 @@ export const getAvailableActions = (state: GameState, territoryId: string): Avai
   }
 
   if (territory.owner === currentPlayer.id && !territory.isMine) {
-    actions.push({ type: 'upgrade', label: `Upgrade territory (Cost: ${state.economy.levelOneValue} Gold)` });
+    const upgradeCost = state.economy.levelOneValue;
+
+    if (currentPlayer.gold >= upgradeCost) {
+      actions.push({
+        type: 'upgrade',
+        label: `Upgrade territory (Cost: ${upgradeCost} Gold)`
+      });
+    }
+    
     const adjacentOwned = state.board.territories.filter((entry) => entry.owner === currentPlayer.id && entry.id !== territory.id && territory.neighbors.includes(entry.id));
     if (adjacentOwned.length > 0) {
       actions.push({ type: 'sell', label: `Sell to adjacent player (Price: ${state.economy.levelOneValue * territory.level} Gold)` });
