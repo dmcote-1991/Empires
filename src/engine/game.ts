@@ -253,13 +253,45 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
   }
 
   if (move.type === 'upgrade' && move.targetTerritoryId) {
-    const target = state.board.territories.find((territory) => territory.id === move.targetTerritoryId);
+    const target = state.board.territories.find(
+      (territory) => territory.id === move.targetTerritoryId
+    );
+
     if (!target || target.owner !== currentPlayer.id || target.isMine) {
       return { success: false, reason: 'Invalid upgrade action', state };
     }
+
+    const upgradeCost = state.economy.levelOneValue;
+
+    if (currentPlayer.gold < upgradeCost) {
+      return {
+        success: false,
+        reason: 'Not enough gold to upgrade',
+        state,
+      };
+    }
+
     const nextState = cloneState(state);
-    nextState.board.territories = nextState.board.territories.map((territory) => (territory.id === target.id ? { ...territory, level: territory.level + 1 } : territory));
-    nextState.turn.currentPlayerIndex = (nextState.turn.currentPlayerIndex + 1) % nextState.players.length;
+
+    // Upgrade the territory
+    nextState.board.territories = nextState.board.territories.map((territory) =>
+      territory.id === target.id
+        ? { ...territory, level: territory.level + 1 }
+        : territory
+    );
+
+    // Deduct the gold
+    const player = nextState.players.find(
+      (player) => player.id === currentPlayer.id
+    );
+
+    if (player) {
+      player.gold -= upgradeCost;
+    }
+
+    nextState.turn.currentPlayerIndex =
+      (nextState.turn.currentPlayerIndex + 1) % nextState.players.length;
+
     return { success: true, state: nextState };
   }
 
