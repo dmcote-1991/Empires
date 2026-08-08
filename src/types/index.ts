@@ -61,12 +61,12 @@ export interface GameState {
 }
 
 export interface Move {
-  type: 'claim' | 'buy' | 'forceBuy' | 'sell' | 'upgrade' | 'produce' | 'skip';
+  type: 'claim' | 'buy' | 'sell' | 'upgrade' | 'produce' | 'skip';
   targetTerritoryId?: string;
   payload?: Record<string, unknown>;
 }
 
-export type ActionName = 'claim' | 'buy' | 'forceBuy' | 'sell' | 'upgrade' | 'produce' | 'skip';
+export type ActionName = 'claim' | 'buy' | 'sell' | 'upgrade' | 'produce' | 'skip';
 
 export interface AvailableAction {
   type: ActionName;

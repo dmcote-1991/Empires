@@ -80,7 +80,7 @@ function App() {
   };
 
   const handleAction = (
-    type: 'claim' | 'buy' | 'forceBuy' | 'sell' | 'upgrade' | 'produce' | 'skip',
+    type: 'claim' | 'buy' | 'sell' | 'upgrade' | 'produce' | 'skip',
     territoryId: string,
     buyerPlayerId?: string
   ) => {

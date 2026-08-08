@@ -187,19 +187,11 @@ export const getAvailableActions = (state: GameState, territoryId: string): Avai
 
   if (territory.owner && territory.owner !== currentPlayer.id && !territory.isMine) {
     const buyCost = state.economy.levelOneValue * territory.level;
-    const forceBuyCost = buyCost * 40;
 
     if (currentPlayer.gold >= buyCost && buyCost > 0) {
       actions.push({
         type: 'buy',
         label: `Buy territory (Asking Price: ${buyCost} Gold)`
-      });
-    }
-
-    if (currentPlayer.gold >= forceBuyCost) {
-      actions.push({
-        type: 'forceBuy',
-        label: `Force buy territory (For: ${forceBuyCost} Gold)`
       });
     }
 
@@ -291,26 +283,6 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
             (territoryId) => territoryId !== target.id
           ),
         };
-      }
-      return player;
-    });
-    nextState.turn.currentPlayerIndex = (nextState.turn.currentPlayerIndex + 1) % nextState.players.length;
-    return { success: true, state: nextState };
-  }
-
-  if (move.type === 'forceBuy' && move.targetTerritoryId) {
-    const target = state.board.territories.find((territory) => territory.id === move.targetTerritoryId);
-    if (!target || !target.owner || target.owner === currentPlayer.id || target.isMine) {
-      return { success: false, reason: 'Invalid force buy action', state };
-    }
-    const nextState = cloneState(state);
-    nextState.board.territories = nextState.board.territories.map((territory) => (territory.id === target.id ? { ...territory, owner: currentPlayer.id } : territory));
-    nextState.players = nextState.players.map((player) => {
-      if (player.id === currentPlayer.id) {
-        return { ...player, territoryIds: [...player.territoryIds, target.id] };
-      }
-      if (player.id === target.owner) {
-        return { ...player, territoryIds: player.territoryIds.filter((territoryId) => territoryId !== target.id) };
       }
       return player;
     });
