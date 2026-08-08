@@ -186,8 +186,23 @@ export const getAvailableActions = (state: GameState, territoryId: string): Avai
   }
 
   if (territory.owner && territory.owner !== currentPlayer.id && !territory.isMine) {
-    actions.push({ type: 'buy', label: `Buy territory (Asking Price: ${state.economy.levelOneValue * territory.level} Gold)` });
-    actions.push({ type: 'forceBuy', label: `Force buy territory (For: ${(state.economy.levelOneValue * territory.level) * 400} Gold)` });
+    const buyCost = state.economy.levelOneValue * territory.level;
+    const forceBuyCost = buyCost * 40;
+
+    if (currentPlayer.gold >= buyCost && buyCost > 0) {
+      actions.push({
+        type: 'buy',
+        label: `Buy territory (Asking Price: ${buyCost} Gold)`
+      });
+    }
+
+    if (currentPlayer.gold >= forceBuyCost) {
+      actions.push({
+        type: 'forceBuy',
+        label: `Force buy territory (For: ${forceBuyCost} Gold)`
+      });
+    }
+
     return actions;
   }
 
@@ -250,14 +265,32 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
     if (!isAdjacent) {
       return { success: false, reason: 'Territory must be adjacent to your territory', state };
     }
+    const buyPrice = state.economy.levelOneValue * target.level;
+    if (currentPlayer.gold < buyPrice) {
+      return {
+        success: false,
+        reason: 'Not enough gold to buy territory',
+        state,
+      };
+    }
     const nextState = cloneState(state);
     nextState.board.territories = nextState.board.territories.map((territory) => (territory.id === target.id ? { ...territory, owner: currentPlayer.id } : territory));
     nextState.players = nextState.players.map((player) => {
       if (player.id === currentPlayer.id) {
-        return { ...player, territoryIds: [...player.territoryIds, target.id] };
+        return {
+          ...player,
+          gold: player.gold - buyPrice,
+          territoryIds: [...player.territoryIds, target.id],
+        };
       }
       if (player.id === target.owner) {
-        return { ...player, territoryIds: player.territoryIds.filter((territoryId) => territoryId !== target.id) };
+        return {
+          ...player,
+          gold: player.gold + buyPrice,
+          territoryIds: player.territoryIds.filter(
+            (territoryId) => territoryId !== target.id
+          ),
+        };
       }
       return player;
     });

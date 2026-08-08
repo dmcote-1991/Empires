@@ -22,6 +22,8 @@ function App() {
   const [pendingSale, setPendingSale] = useState<{
   territoryId: string;
   buyerPlayerId: string;
+  sellerPlayerId: string;
+  type: 'buy' | 'sell';
 } | null>(null);
 
   const normalizedPlayerConfigs = useMemo(() => {
@@ -83,6 +85,45 @@ function App() {
     buyerPlayerId?: string
   ) => {
     if (!gameState) {
+      return;
+    }
+
+    if (type === 'buy') {
+      const territory = gameState.board.territories.find(
+        (territory) => territory.id === territoryId
+      );
+
+      if (!territory?.owner) {
+        return;
+      }
+
+      // If this is already a confirmed purchase, execute it.
+      if (
+        pendingSale?.type === 'buy' &&
+        pendingSale.territoryId === territoryId
+      ) {
+        const result = executeGameAction(gameState, {
+          type: 'buy',
+          targetTerritoryId: territoryId,
+        });
+
+        if (result.success) {
+          setGameState(result.state);
+          setSelectedTerritoryId(null);
+        }
+
+        return;
+      }
+
+      // Otherwise, ask the seller for confirmation.
+      setPendingSale({
+        territoryId,
+        buyerPlayerId:
+          gameState.turn.order[gameState.turn.currentPlayerIndex],
+        sellerPlayerId: territory.owner,
+        type: 'buy',
+      });
+
       return;
     }
 
@@ -216,6 +257,8 @@ function App() {
                             setPendingSale({
                               territoryId: selectedTerritoryId,
                               buyerPlayerId: player.id,
+                              sellerPlayerId: gameState.turn.order[gameState.turn.currentPlayerIndex],
+                              type: 'sell',
                             })
                           }
                         >
@@ -262,7 +305,7 @@ function App() {
                     <button
                       onClick={() => {
                         handleAction(
-                          'sell',
+                          pendingSale.type === 'buy' ? 'buy' : 'sell',
                           pendingSale.territoryId,
                           pendingSale.buyerPlayerId
                         );
