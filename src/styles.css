@@ -52,6 +52,11 @@ button { cursor: pointer; }
   aspect-ratio: 1 / 1;
 }
 
+.tile.selected {
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 2px #2563eb;
+}
+
 .action-menu {
   position: absolute;
   left: calc(100% + 8px);
