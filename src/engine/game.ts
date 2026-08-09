@@ -142,6 +142,13 @@ function getMineProduction(
   return returnValue;
 }
 
+function updateTotalGold(state: GameState): void {
+  state.economy.totalGold = state.players.reduce(
+    (total, player) => total + player.gold,
+    0
+  );
+}
+
 function getEligibleBuyers(
   state: GameState,
   territory: Territory,
@@ -327,6 +334,8 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
       player.gold -= upgradeCost;
     }
 
+    updateTotalGold(nextState);
+
     nextState.turn.currentPlayerIndex =
       (nextState.turn.currentPlayerIndex + 1) % nextState.players.length;
 
@@ -340,8 +349,18 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
     }
     const nextState = cloneState(state);
     const goldProduced = getMineProduction(nextState, currentPlayerId);
-    // Add to the game's total gold
-    nextState.economy.totalGold += goldProduced;
+    // Add gold to the current player
+    const player = nextState.players.find(
+      (player) => player.id === currentPlayer.id
+    );
+
+    if (player) {
+      player.gold += goldProduced;
+    }
+
+    // Total gold is the sum of all player gold
+    updateTotalGold(nextState);
+
     // Recalculate level one territory value
     const nonMineTerritoryCount = nextState.board.territories.filter(
       (territory) => !territory.isMine
@@ -349,13 +368,7 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
     nextState.economy.levelOneValue = Math.round(
       nextState.economy.totalGold / Math.max(1, nonMineTerritoryCount)
     );
-    // Add to the current player's gold
-    const player = nextState.players.find(
-      (player) => player.id === currentPlayer.id
-    );
-    if (player) {
-      player.gold += goldProduced;
-    }
+
     nextState.turn.currentPlayerIndex = (nextState.turn.currentPlayerIndex + 1) % nextState.players.length;
     return { success: true, state: nextState };
   }
