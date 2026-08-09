@@ -49,6 +49,29 @@ function App() {
     }
   }, [gameState]);
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+
+      // Keep the menu open when clicking the selected territory
+      // or anything inside its action menu.
+      if (
+        target.closest('.tile-wrapper') ||
+        target.closest('.action-menu')
+      ) {
+        return;
+      }
+
+      setSelectedTerritoryId(null);
+    };
+
+    document.addEventListener('click', handleClickOutside);
+
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, []);
+
   const startGame = () => {
     const validPlayers = normalizedPlayerConfigs.map((player, index) => ({
       ...player,
@@ -221,64 +244,21 @@ function App() {
       </header>
       <main className="main-layout">
         <div className="board-column">
-          <BoardView gameState={gameState} onSelectTerritory={handleSelectTerritory} />
-          {selectedTerritoryId && (
-            <div className="action-panel">
-              <h3>Actions</h3>
-              {getAvailableActions(gameState, selectedTerritoryId).map((action) => (
-                action.type === 'sell' ? (
-                  getSellBuyers(selectedTerritoryId)
-                    .filter((player) => {
-                      const territory = gameState.board.territories.find(
-                        (territory) => territory.id === selectedTerritoryId
-                      );
-
-                      if (!territory) {
-                        return false;
-                      }
-
-                      const price = gameState.economy.levelOneValue * territory.level;
-
-                      return player.gold >= price;
-                    })
-                    .map((player) => {
-                      const territory = gameState.board.territories.find(
-                        (territory) => territory.id === selectedTerritoryId
-                      );
-
-                      const price = territory
-                        ? gameState.economy.levelOneValue * territory.level
-                        : 0;
-
-                      return (
-                        <button
-                          key={`${action.type}-${player.id}`}
-                          onClick={() =>
-                            setPendingSale({
-                              territoryId: selectedTerritoryId,
-                              buyerPlayerId: player.id,
-                              sellerPlayerId: gameState.turn.order[gameState.turn.currentPlayerIndex],
-                              type: 'sell',
-                            })
-                          }
-                        >
-                          Sell to {player.name} (Price: {price} Gold)
-                        </button>
-                      );
-                    })
-                ) : (
-                  <button
-                    key={action.type}
-                    onClick={() =>
-                      handleAction(action.type, selectedTerritoryId)
-                    }
-                  >
-                    {action.label}
-                  </button>
-                )
-              ))}
-            </div>
-          )}
+          <BoardView
+            gameState={gameState}
+            selectedTerritoryId={selectedTerritoryId}
+            availableActions={
+              selectedTerritoryId
+                ? getAvailableActions(
+                    gameState,
+                    selectedTerritoryId
+                  )
+                : []
+            }
+            onSelectTerritory={handleSelectTerritory}
+            onAction={handleAction}
+            getSellBuyers={getSellBuyers}
+          />
 
           {pendingSale && (
             <div>
