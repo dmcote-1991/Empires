@@ -131,15 +131,13 @@ function getMineProduction(
       territory.owner === playerId && territory.isMine
   ).length;
 
-  let returnValue = Math.round(
+  const baseProduction =
     (10000 * state.economy.mineEfficiency) /
-      (state.settings.mineCount * playerMineCount)
-  );
-  if (playerMineCount > 1) {
-    returnValue = Math.round(returnValue * 1.9);
-  }
+    state.settings.mineCount;
 
-  return returnValue;
+  const mineBonus = 1 + 0.10 * (playerMineCount - 1);
+
+  return Math.round(baseProduction * mineBonus);
 }
 
 function updateTotalGold(state: GameState): void {
