@@ -130,8 +130,30 @@ export function BoardView({
         <strong>Current turn</strong>
         <span>{gameState.players.find((player) => player.id === currentPlayerId)?.name}</span>
       </div>
-      <div className="board-grid">
-        {gameState.board.territories.map(renderTerritory)}
+      <div
+        className="board-grid"
+        style={{
+          gridTemplateColumns: `repeat(${gameState.board.dimensions.cols}, minmax(0, 1fr))`,
+        }}
+      >
+  {gameState.board.territories.map((territory) => {
+          const index = Number(territory.id.slice(2)) - 1;
+          const row = Math.floor(index / gameState.board.dimensions.cols);
+          const col = index % gameState.board.dimensions.cols;
+
+          return (
+            <div
+              key={territory.id}
+              className="tile-wrapper"
+              style={{
+                gridColumn: col + 1,
+                gridRow: row + 1,
+              }}
+            >
+              {renderTerritory(territory)}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

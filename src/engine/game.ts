@@ -4,9 +4,6 @@ export const MINE_EFFICIENCY_TABLE = [1, 0.99, 0.98, 0.96, 0.92, 0.84, 0.36];
 
 type Rng = () => number;
 
-const DEFAULT_ROWS = 20;
-const DEFAULT_COLS = 20;
-
 export const createInitialGameState = (options: {
   playerConfigs: PlayerConfig[];
   territoryCount: number;
@@ -489,10 +486,118 @@ function cloneState(state: GameState): GameState {
 }
 
 function generateBoard(territoryCount: number, rng: Rng): Board {
-  const rows = DEFAULT_ROWS;
-  const cols = DEFAULT_COLS;
+  // Generate a temporary board that is 5x larger than the
+  // number of territories the player requested.
+  const temporaryCellCount = territoryCount * 2;
+
+  // Make the temporary board as close to square as possible.
+  const cols = Math.ceil(Math.sqrt(temporaryCellCount));
+  const rows = Math.ceil(temporaryCellCount / cols);
+
+  const totalCells = rows * cols;
+
+  // Every cell starts as part of the temporary board.
+  const remaining = new Set<number>();
+
+  for (let index = 0; index < totalCells; index += 1) {
+    remaining.add(index);
+  }
+
+  // Keep removing cells from the outside inward until we
+  // have exactly the number of territories the player requested.
+  while (remaining.size > territoryCount) {
+    const perimeter = getPerimeterCells(remaining, rows, cols);
+
+    if (perimeter.length === 0) {
+      break;
+    }
+
+    // Shuffle the perimeter so that we get a random
+    // deletion order rather than always checking cells
+    // in the same order.
+    for (let index = perimeter.length - 1; index > 0; index -= 1) {
+      const randomIndex = Math.floor(rng() * (index + 1));
+
+      [perimeter[index], perimeter[randomIndex]] = [
+        perimeter[randomIndex],
+        perimeter[index],
+      ];
+    }
+
+    let removed = false;
+
+    for (const selectedIndex of perimeter) {
+      const row = Math.floor(selectedIndex / cols);
+      const col = selectedIndex % cols;
+
+      const neighboringIndexes = [
+        { row: row - 1, col },
+        { row: row + 1, col },
+        { row, col: col - 1 },
+        { row, col: col + 1 },
+      ]
+        .filter(
+          (candidate) =>
+            candidate.row >= 0 &&
+            candidate.row < rows &&
+            candidate.col >= 0 &&
+            candidate.col < cols
+        )
+        .map(
+          (candidate) =>
+            candidate.row * cols + candidate.col
+        )
+        .filter((neighborIndex) => remaining.has(neighborIndex));
+
+      // A cell with zero or one remaining neighbor
+      // cannot be holding two parts of the board together.
+      if (neighboringIndexes.length <= 1) {
+        remaining.delete(selectedIndex);
+        removed = true;
+        break;
+      }
+
+      // Temporarily remove the cell and make sure the
+      // remaining board is still connected.
+      remaining.delete(selectedIndex);
+
+      if (
+        isConnectedCellSet(remaining, rows, cols) &&
+        !hasLongThinArm(remaining, rows, cols)
+      ) {
+        // Keep the irregular/random shape.
+        if (rng() < 0.75) {
+          removed = true;
+          break;
+        }
+      }
+
+      // Removing this cell would disconnect the board,
+      // or would create a long thin arm.
+      remaining.add(selectedIndex);
+    }
+
+    // Safety fallback: find a perimeter cell whose removal
+    // preserves connectivity.
+    if (!removed) {
+      for (const selectedIndex of perimeter) {
+        remaining.delete(selectedIndex);
+
+        if (isConnectedCellSet(remaining, rows, cols)) {
+          removed = true;
+          break;
+        }
+
+        remaining.add(selectedIndex);
+      }
+    }
+  }
+
   const territories: Territory[] = [];
-  for (let index = 0; index < territoryCount; index += 1) {
+
+  // Create territories using their original grid position.
+  // The ID preserves the cell's position in the temporary grid.
+  for (const index of remaining) {
     territories.push({
       id: `t-${index + 1}`,
       owner: null,
@@ -502,10 +607,13 @@ function generateBoard(territoryCount: number, rng: Rng): Board {
     });
   }
 
-  for (let index = 0; index < territories.length; index += 1) {
+  // Rebuild neighbors using only the cells that survived
+  // the erosion process.
+  for (const territory of territories) {
+    const index = Number(territory.id.slice(2)) - 1;
     const row = Math.floor(index / cols);
     const col = index % cols;
-    const neighbors: string[] = [];
+
     const possibleNeighbors = [
       { row: row - 1, col },
       { row: row + 1, col },
@@ -513,31 +621,246 @@ function generateBoard(territoryCount: number, rng: Rng): Board {
       { row, col: col + 1 },
     ];
 
+    const neighbors: string[] = [];
+
     for (const candidate of possibleNeighbors) {
-      if (candidate.row < 0 || candidate.row >= rows || candidate.col < 0 || candidate.col >= cols) {
+      if (
+        candidate.row < 0 ||
+        candidate.row >= rows ||
+        candidate.col < 0 ||
+        candidate.col >= cols
+      ) {
         continue;
       }
-      const nextIndex = candidate.row * cols + candidate.col;
-      if (nextIndex < territories.length) {
-        neighbors.push(territories[nextIndex].id);
+
+      const neighborIndex =
+        candidate.row * cols + candidate.col;
+
+      if (remaining.has(neighborIndex)) {
+        neighbors.push(`t-${neighborIndex + 1}`);
       }
     }
 
-    const jitter = Math.floor(rng() * 3);
-    if (jitter > 0 && neighbors.length > 0) {
-      const extra = neighbors.slice(0, jitter);
-      territories[index].neighbors = [...new Set([...neighbors, ...extra])];
-    } else {
-      territories[index].neighbors = neighbors;
-    }
+    territory.neighbors = neighbors;
   }
 
-  const connected = territories.filter((territory) => territory.neighbors.length > 0);
   return {
-    territories: connected,
+    territories,
     mines: [],
     dimensions: { rows, cols },
   };
+}
+
+function isConnectedCellSet(
+  remaining: Set<number>,
+  rows: number,
+  cols: number
+): boolean {
+  if (remaining.size === 0) {
+    return true;
+  }
+
+  const start = remaining.values().next().value;
+
+  if (start === undefined) {
+    return true;
+  }
+
+  const visited = new Set<number>();
+  const frontier = [start];
+
+  while (frontier.length > 0) {
+    const current = frontier.pop()!;
+
+    if (visited.has(current)) {
+      continue;
+    }
+
+    visited.add(current);
+
+    const row = Math.floor(current / cols);
+    const col = current % cols;
+
+    const neighbors = [
+      { row: row - 1, col },
+      { row: row + 1, col },
+      { row, col: col - 1 },
+      { row, col: col + 1 },
+    ];
+
+    for (const neighbor of neighbors) {
+      if (
+        neighbor.row < 0 ||
+        neighbor.row >= rows ||
+        neighbor.col < 0 ||
+        neighbor.col >= cols
+      ) {
+        continue;
+      }
+
+      const neighborIndex =
+        neighbor.row * cols + neighbor.col;
+
+      if (
+        remaining.has(neighborIndex) &&
+        !visited.has(neighborIndex)
+      ) {
+        frontier.push(neighborIndex);
+      }
+    }
+  }
+
+  return visited.size === remaining.size;
+}
+
+function hasLongThinArm(
+  remaining: Set<number>,
+  rows: number,
+  cols: number
+): boolean {
+  const visited = new Set<number>();
+
+  for (const start of remaining) {
+    if (visited.has(start)) {
+      continue;
+    }
+
+    const startNeighbors = getCellNeighbors(
+      start,
+      remaining,
+      rows,
+      cols
+    );
+
+    // Only investigate cells that are part of a thin section.
+    if (startNeighbors.length !== 2) {
+      continue;
+    }
+
+    const chain = [start];
+    const frontier = [start];
+    const chainVisited = new Set<number>([start]);
+
+    while (frontier.length > 0) {
+      const current = frontier.pop()!;
+
+      const neighbors = getCellNeighbors(
+        current,
+        remaining,
+        rows,
+        cols
+      );
+
+      for (const neighbor of neighbors) {
+        if (chainVisited.has(neighbor)) {
+          continue;
+        }
+
+        const neighborCount = getCellNeighbors(
+          neighbor,
+          remaining,
+          rows,
+          cols
+        ).length;
+
+        if (neighborCount === 2) {
+          chainVisited.add(neighbor);
+          chain.push(neighbor);
+          frontier.push(neighbor);
+        }
+      }
+    }
+
+    chain.forEach((cell) => visited.add(cell));
+
+    // A chain of 2-neighbor cells this long is
+    // considered an arm.
+    if (chain.length >= 4) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function getCellNeighbors(
+  index: number,
+  remaining: Set<number>,
+  rows: number,
+  cols: number
+): number[] {
+  const row = Math.floor(index / cols);
+  const col = index % cols;
+
+  const possibleNeighbors = [
+    { row: row - 1, col },
+    { row: row + 1, col },
+    { row, col: col - 1 },
+    { row, col: col + 1 },
+  ];
+
+  const neighbors: number[] = [];
+
+  for (const neighbor of possibleNeighbors) {
+    if (
+      neighbor.row < 0 ||
+      neighbor.row >= rows ||
+      neighbor.col < 0 ||
+      neighbor.col >= cols
+    ) {
+      continue;
+    }
+
+    const neighborIndex =
+      neighbor.row * cols + neighbor.col;
+
+    if (remaining.has(neighborIndex)) {
+      neighbors.push(neighborIndex);
+    }
+  }
+
+  return neighbors;
+}
+
+function getPerimeterCells(
+  remaining: Set<number>,
+  rows: number,
+  cols: number
+): number[] {
+  const perimeter: number[] = [];
+
+  for (const index of remaining) {
+    const row = Math.floor(index / cols);
+    const col = index % cols;
+
+    const hasOutsideNeighbor =
+      row === 0 ||
+      row === rows - 1 ||
+      col === 0 ||
+      col === cols - 1;
+
+    if (hasOutsideNeighbor) {
+      perimeter.push(index);
+      continue;
+    }
+
+    const neighboringIndexes = [
+      index - cols,
+      index + cols,
+      index - 1,
+      index + 1,
+    ];
+
+    const hasMissingNeighbor = neighboringIndexes.some(
+      (neighborIndex) => !remaining.has(neighborIndex)
+    );
+
+    if (hasMissingNeighbor) {
+      perimeter.push(index);
+    }
+  }
+
+  return perimeter;
 }
 
 function placeMines(territories: Territory[], mineCount: number, rng: Rng): string[] {
