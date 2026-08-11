@@ -43,9 +43,11 @@ export function BoardView({
     return (
       <div key={territory.id} className="tile-wrapper">
         <button
-          className={`tile ${territory.isMine ? 'mine' : ''} ${
-            territory.owner ? 'owned' : ''
-          } ${selectedTerritoryId === territory.id ? 'selected' : ''}`}
+          className={`tile ${territory.biome} ${
+            territory.isMine ? 'mine' : ''
+          } ${territory.owner ? 'owned' : ''} ${
+            selectedTerritoryId === territory.id ? 'selected' : ''
+          }`}
           style={{
             borderColor: owner
               ? colorMap[owner.color]

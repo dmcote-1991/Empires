@@ -12,7 +12,19 @@ export const createInitialGameState = (options: {
 }): GameState => {
   const rng = options.rng ?? Math.random;
   const board = generateBoard(options.territoryCount, rng);
-  const mineTerritoryIds = placeMines(board.territories, options.mineCount, rng);
+
+  generateMountainBiomes(
+    board.territories,
+    options.mineCount,
+    rng
+  );
+
+  const mineTerritoryIds = placeMines(
+    board.territories,
+    options.mineCount,
+    rng
+  );
+
   const territories = board.territories.map((territory) => {
     const isMine = mineTerritoryIds.includes(territory.id);
     return {
@@ -603,6 +615,7 @@ function generateBoard(territoryCount: number, rng: Rng): Board {
       level: 1,
       neighbors: [],
       isMine: false,
+      biome: 'field',
     });
   }
 
@@ -744,16 +757,242 @@ function wouldCreateLongArm(
   return length >= 3;
 }
 
-function placeMines(territories: Territory[], mineCount: number, rng: Rng): string[] {
-  const mineTerritoryIds: string[] = [];
-  const candidateTerritories = territories.filter((territory) => territory.neighbors.length >= 2);
-  while (mineTerritoryIds.length < mineCount && candidateTerritories.length > 0) {
-    const randomIndex = Math.floor(rng() * candidateTerritories.length);
-    const selected = candidateTerritories[randomIndex];
-    if (!mineTerritoryIds.includes(selected.id)) {
-      mineTerritoryIds.push(selected.id);
-    }
-    candidateTerritories.splice(randomIndex, 1);
+const MAX_MOUNTAIN_PERCENT = 0.30;
+const MIN_MOUNTAIN_PERCENT = 0.20;
+const MAX_MOUNTAIN_ATTEMPTS = 20;
+
+function generateMountainBiomes(
+  territories: Territory[],
+  mineCount: number,
+  rng: Rng
+): void {
+  if (territories.length === 0) {
+    return;
   }
+
+  const targetMountainCount = Math.max(
+    Math.ceil(territories.length * MIN_MOUNTAIN_PERCENT),
+    mineCount * 5
+  );
+
+  const maxMountainCount = Math.floor(
+    territories.length * MAX_MOUNTAIN_PERCENT
+  );
+
+  const mountainTarget = Math.min(
+    targetMountainCount,
+    maxMountainCount
+  );
+
+  for (let attempt = 0; attempt < MAX_MOUNTAIN_ATTEMPTS; attempt += 1) {
+    for (const territory of territories) {
+      territory.biome = 'field';
+    }
+
+    const mountainIds = new Set<string>();
+
+    const rangeCount = Math.max(
+      2,
+      Math.min(4, Math.ceil(territories.length / 250))
+    );
+
+    // Pick random starting points.
+    const shuffled = [...territories];
+
+    for (let index = shuffled.length - 1; index > 0; index -= 1) {
+      const randomIndex = Math.floor(rng() * (index + 1));
+
+      [shuffled[index], shuffled[randomIndex]] = [
+        shuffled[randomIndex],
+        shuffled[index],
+      ];
+    }
+
+    for (let index = 0; index < rangeCount; index += 1) {
+      mountainIds.add(shuffled[index].id);
+    }
+
+    while (mountainIds.size < mountainTarget) {
+      const frontier = territories.filter(
+        (territory) =>
+          !mountainIds.has(territory.id) &&
+          territory.neighbors.some((neighborId) =>
+            mountainIds.has(neighborId)
+          )
+      );
+
+      if (frontier.length === 0) {
+        break;
+      }
+
+      const scored = frontier.map((territory) => {
+        const mountainNeighbors =
+          territory.neighbors.filter((neighborId) =>
+            mountainIds.has(neighborId)
+          ).length;
+
+        let score = rng();
+
+        /*
+        * Prefer 2-3 mountain neighbors.
+        *
+        * One neighbor extends the range too aggressively.
+        * Four+ neighbors usually means we're filling a hole
+        * and creating a rectangular shape.
+        */
+        if (mountainNeighbors === 1) {
+          score -= 4.5;
+        } else if (mountainNeighbors === 2) {
+          score += 6;
+        } else if (mountainNeighbors === 3) {
+          score += 4.5;
+        } else if (mountainNeighbors >= 4) {
+          score += 3;
+        }
+
+        return {
+          territory,
+          score,
+        };
+      });
+
+      scored.sort((a, b) => b.score - a.score);
+
+      /*
+      * Choose randomly from the strongest candidates.
+      * This keeps the edge irregular without creating
+      * lots of holes inside the mountain range.
+      */
+      const candidateCount = Math.min(
+        90,
+        scored.length
+      );
+
+      const selected =
+        scored[
+          Math.floor(rng() * candidateCount)
+        ].territory;
+
+      mountainIds.add(selected.id);
+    }
+
+    for (const territory of territories) {
+      if (mountainIds.has(territory.id)) {
+        territory.biome = 'mountain';
+      }
+    }
+
+    const mineCandidates = territories.filter(
+      (territory) =>
+        territory.biome === 'mountain' &&
+        countMountainNeighbors(
+          territory,
+          territories
+        ) >= 3
+    );
+
+    if (mineCandidates.length >= mineCount) {
+      return;
+    }
+  }
+
+  expandMountainsForMines(
+    territories,
+    mineCount
+  );
+}
+
+
+function countMountainNeighbors(
+  territory: Territory,
+  territories: Territory[]
+): number {
+  return territory.neighbors.filter((neighborId) => {
+    const neighbor = territories.find(
+      (entry) => entry.id === neighborId
+    );
+
+    return neighbor?.biome === 'mountain';
+  }).length;
+}
+
+
+function expandMountainsForMines(
+  territories: Territory[],
+  mineCount: number
+): void {
+  while (
+    territories.filter(
+      (territory) =>
+        territory.biome === 'mountain' &&
+        countMountainNeighbors(territory, territories) >= 3
+    ).length < mineCount
+  ) {
+    const candidate = territories
+      .filter((territory) => territory.biome === 'field')
+      .sort((a, b) => {
+        const aMountainNeighbors = countMountainNeighbors(
+          a,
+          territories
+        );
+
+        const bMountainNeighbors = countMountainNeighbors(
+          b,
+          territories
+        );
+
+        return bMountainNeighbors - aMountainNeighbors;
+      })[0];
+
+    if (!candidate) {
+      break;
+    }
+
+    candidate.biome = 'mountain';
+  }
+}
+
+function placeMines(
+  territories: Territory[],
+  mineCount: number,
+  rng: Rng
+): string[] {
+  const mineTerritoryIds: string[] = [];
+
+  const candidateTerritories = territories.filter(
+    (territory) =>
+      territory.biome === 'mountain' &&
+      countMountainNeighbors(territory, territories) >= 3
+  );
+
+  // Shuffle candidates.
+  for (
+    let index = candidateTerritories.length - 1;
+    index > 0;
+    index -= 1
+  ) {
+    const randomIndex = Math.floor(
+      rng() * (index + 1)
+    );
+
+    [
+      candidateTerritories[index],
+      candidateTerritories[randomIndex],
+    ] = [
+      candidateTerritories[randomIndex],
+      candidateTerritories[index],
+    ];
+  }
+
+  for (
+    const territory of candidateTerritories
+  ) {
+    if (mineTerritoryIds.length >= mineCount) {
+      break;
+    }
+
+    mineTerritoryIds.push(territory.id);
+  }
+
   return mineTerritoryIds;
 }

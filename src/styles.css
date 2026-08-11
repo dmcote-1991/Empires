@@ -26,8 +26,34 @@ button { cursor: pointer; }
 .board-panel { display: flex; flex-direction: column; gap: 12px; }
 .board-toolbar { display: flex; justify-content: space-between; }
 .board-grid { display: grid; gap: 4px; }.tile { min-height: 32px; border: 1px solid #64748b; border-radius: 6px; padding: 4px; display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; background: #1f2937; color: #f9fafb; }
-.tile.mine { background: #7c2d12; }
-.tile.owned { font-weight: 700; }
+.tile {
+  min-height: 32px;
+  border: 1px solid #64748b;
+  border-radius: 6px;
+  padding: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  background: #1f2937;
+  color: #f9fafb;
+}
+
+.tile.field {
+  background: #26302a;
+}
+
+.tile.mountain {
+  background: #34383d;
+}
+
+.tile.mine {
+  background: #4a382b;
+}
+
+.tile.owned {
+  font-weight: 700;
+}
 .tile:hover { transform: translateY(-1px); }
 .sidebar { display: flex; flex-direction: column; gap: 12px; }
 .button-row { display: flex; flex-wrap: wrap; gap: 8px; }
