@@ -907,7 +907,7 @@ function generateMountainBiomes(
   );
 }
 
-const FIELD_PERCENT_OF_FOREST = 0.30;
+const FIELD_PERCENT_OF_FOREST = 0.15;
 
 function generateFieldBiomes(
   territories: Territory[],
