@@ -19,6 +19,11 @@ export const createInitialGameState = (options: {
     rng
   );
 
+  generateFieldBiomes(
+    board.territories,
+    rng
+  );
+
   const mineTerritoryIds = placeMines(
     board.territories,
     options.mineCount,
@@ -615,7 +620,7 @@ function generateBoard(territoryCount: number, rng: Rng): Board {
       level: 1,
       neighbors: [],
       isMine: false,
-      biome: 'field',
+      biome: 'forest',
     });
   }
 
@@ -786,7 +791,7 @@ function generateMountainBiomes(
 
   for (let attempt = 0; attempt < MAX_MOUNTAIN_ATTEMPTS; attempt += 1) {
     for (const territory of territories) {
-      territory.biome = 'field';
+      territory.biome = 'forest';
     }
 
     const mountainIds = new Set<string>();
@@ -902,6 +907,185 @@ function generateMountainBiomes(
   );
 }
 
+const FIELD_PERCENT_OF_FOREST = 0.30;
+
+function generateFieldBiomes(
+  territories: Territory[],
+  rng: Rng
+): void {
+  const forestTerritories = territories.filter(
+    (territory) => territory.biome === 'forest'
+  );
+
+  if (forestTerritories.length === 0) {
+    return;
+  }
+
+  const targetFieldCount = Math.floor(
+    forestTerritories.length * FIELD_PERCENT_OF_FOREST
+  );
+
+  if (targetFieldCount <= 0) {
+    return;
+  }
+
+  const fieldIds = new Set<string>();
+
+  /*
+   * Use several independent seeds instead of one seed.
+   *
+   * This creates scattered clearings throughout the forest
+   * instead of one giant connected field.
+   */
+  const blobCount = Math.max(
+    2,
+    Math.round(targetFieldCount / 10)
+  );
+
+  const shuffled = [...forestTerritories];
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(
+      rng() * (index + 1)
+    );
+
+    [shuffled[index], shuffled[randomIndex]] = [
+      shuffled[randomIndex],
+      shuffled[index],
+    ];
+  }
+
+  const seedCount = Math.min(
+    blobCount,
+    shuffled.length,
+    targetFieldCount
+  );
+
+  /*
+   * Pick seeds that are reasonably separated from
+   * existing field seeds.
+   */
+  for (const territory of shuffled) {
+    if (fieldIds.size >= seedCount) {
+      break;
+    }
+
+    const tooClose = territory.neighbors.some(
+      (neighborId) => fieldIds.has(neighborId)
+    );
+
+    if (!tooClose) {
+      fieldIds.add(territory.id);
+    }
+  }
+
+  /*
+   * If the map is small and we couldn't find enough
+   * separated seeds, fill the remaining seed slots.
+   */
+  if (fieldIds.size < seedCount) {
+    for (const territory of shuffled) {
+      if (fieldIds.size >= seedCount) {
+        break;
+      }
+
+      fieldIds.add(territory.id);
+    }
+  }
+
+  /*
+   * Grow each clearing organically.
+   *
+   * Unlike mountains, we don't reward long chains.
+   * Territories with several field neighbors are favored,
+   * which causes each clearing to become a compact blob.
+   */
+  while (fieldIds.size < targetFieldCount) {
+    const frontier = forestTerritories.filter(
+      (territory) =>
+        !fieldIds.has(territory.id) &&
+        territory.neighbors.some((neighborId) =>
+          fieldIds.has(neighborId)
+        )
+    );
+
+    if (frontier.length === 0) {
+      break;
+    }
+
+    const scored = frontier.map((territory) => {
+      const fieldNeighbors = territory.neighbors.filter(
+        (neighborId) => fieldIds.has(neighborId)
+      ).length;
+
+      let score = rng();
+
+      /*
+       * Prefer 2-3 field neighbors.
+       *
+       * 1 neighbor tends to create narrow extensions.
+       * 2-3 creates rounded, natural clearings.
+       * 4+ tends to fill holes and become too geometric.
+       */
+      if (fieldNeighbors === 1) {
+        score -= 3;
+      } else if (fieldNeighbors === 2) {
+        score += 5;
+      } else if (fieldNeighbors === 3) {
+        score += 4;
+      } else if (fieldNeighbors >= 4) {
+        score += 1;
+      }
+
+      /*
+       * Very large blobs are discouraged so that fields
+       * remain scattered around the forest.
+       */
+      const nearbyFieldCount = territory.neighbors.filter(
+        (neighborId) => fieldIds.has(neighborId)
+      ).length;
+
+      score += nearbyFieldCount * 0.5;
+
+      return {
+        territory,
+        score,
+      };
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+
+    /*
+     * Choose randomly from the strongest candidates rather
+     * than always choosing the single strongest one.
+     *
+     * This keeps the clearing edges irregular.
+     */
+    const candidateCount = Math.min(
+      20,
+      scored.length
+    );
+
+    const selected =
+      scored[
+        Math.floor(rng() * candidateCount)
+      ].territory;
+
+    fieldIds.add(selected.id);
+  }
+
+  /*
+   * Convert the selected forest territories into fields.
+   *
+   * Mountains were already generated, so only forest
+   * territories could have reached this function's lists.
+   */
+  for (const territory of territories) {
+    if (fieldIds.has(territory.id)) {
+      territory.biome = 'field';
+    }
+  }
+}
 
 function countMountainNeighbors(
   territory: Territory,

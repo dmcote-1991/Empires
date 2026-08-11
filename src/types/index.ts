@@ -20,7 +20,7 @@ export interface Territory {
   level: number;
   neighbors: string[];
   isMine: boolean;
-  biome: 'field' | 'mountain';
+  biome: 'forest' | 'field' | 'mountain';
 }
 
 export interface Mine {

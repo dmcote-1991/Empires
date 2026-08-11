@@ -39,8 +39,12 @@ button { cursor: pointer; }
   color: #f9fafb;
 }
 
+.tile.forest {
+background: #2e4736;
+}
+
 .tile.field {
-  background: #2e4736;
+  background: #585e4f;
 }
 
 .tile.mountain {
