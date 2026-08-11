@@ -486,117 +486,116 @@ function cloneState(state: GameState): GameState {
 }
 
 function generateBoard(territoryCount: number, rng: Rng): Board {
-  // Generate a temporary board that is 5x larger than the
-  // number of territories the player requested.
   const temporaryCellCount = territoryCount * 2;
 
-  // Make the temporary board as close to square as possible.
   const cols = Math.ceil(Math.sqrt(temporaryCellCount));
   const rows = Math.ceil(temporaryCellCount / cols);
 
-  const totalCells = rows * cols;
-
-  // Every cell starts as part of the temporary board.
   const remaining = new Set<number>();
 
-  for (let index = 0; index < totalCells; index += 1) {
-    remaining.add(index);
+  // Start with a small irregular seed instead of one
+  // single center cell. This gives the map an organic
+  // starting shape.
+  const centerRow = Math.floor(rows / 2);
+  const centerCol = Math.floor(cols / 2);
+
+  const seedCandidates = [
+    centerRow * cols + centerCol,
+    (centerRow - 1) * cols + centerCol,
+    (centerRow + 1) * cols + centerCol,
+    centerRow * cols + centerCol - 1,
+    centerRow * cols + centerCol + 1,
+  ];
+
+  for (const index of seedCandidates) {
+    if (
+      index >= 0 &&
+      index < rows * cols
+    ) {
+      remaining.add(index);
+    }
   }
 
-  // Keep removing cells from the outside inward until we
-  // have exactly the number of territories the player requested.
-  while (remaining.size > territoryCount) {
-    const perimeter = getPerimeterCells(remaining, rows, cols);
+  while (remaining.size < territoryCount) {
+    const frontier = getFrontierCells(
+      remaining,
+      rows,
+      cols
+    );
 
-    if (perimeter.length === 0) {
+    if (frontier.length === 0) {
       break;
     }
 
-    // Shuffle the perimeter so that we get a random
-    // deletion order rather than always checking cells
-    // in the same order.
-    for (let index = perimeter.length - 1; index > 0; index -= 1) {
-      const randomIndex = Math.floor(rng() * (index + 1));
+    // Randomize the frontier instead of sorting it by
+    // neighbor count. This is what gives the coastline
+    // its irregular character.
+    for (
+      let index = frontier.length - 1;
+      index > 0;
+      index -= 1
+    ) {
+      const randomIndex = Math.floor(
+        rng() * (index + 1)
+      );
 
-      [perimeter[index], perimeter[randomIndex]] = [
-        perimeter[randomIndex],
-        perimeter[index],
+      [
+        frontier[index],
+        frontier[randomIndex],
+      ] = [
+        frontier[randomIndex],
+        frontier[index],
       ];
     }
 
-    let removed = false;
+    let selectedIndex: number | null = null;
 
-    for (const selectedIndex of perimeter) {
-      const row = Math.floor(selectedIndex / cols);
-      const col = selectedIndex % cols;
+    // Examine the randomized candidates.
+    for (const candidate of frontier) {
+      const neighbors = getCellNeighbors(
+        candidate,
+        remaining,
+        rows,
+        cols
+      );
 
-      const neighboringIndexes = [
-        { row: row - 1, col },
-        { row: row + 1, col },
-        { row, col: col - 1 },
-        { row, col: col + 1 },
-      ]
-        .filter(
-          (candidate) =>
-            candidate.row >= 0 &&
-            candidate.row < rows &&
-            candidate.col >= 0 &&
-            candidate.col < cols
-        )
-        .map(
-          (candidate) =>
-            candidate.row * cols + candidate.col
-        )
-        .filter((neighborIndex) => remaining.has(neighborIndex));
-
-      // A cell with zero or one remaining neighbor
-      // cannot be holding two parts of the board together.
-      if (neighboringIndexes.length <= 1) {
-        remaining.delete(selectedIndex);
-        removed = true;
+      // A candidate with 2+ existing neighbors naturally
+      // connects to the body of the map.
+      if (neighbors.length >= 2) {
+        selectedIndex = candidate;
         break;
       }
 
-      // Temporarily remove the cell and make sure the
-      // remaining board is still connected.
-      remaining.delete(selectedIndex);
-
+      // One-neighbor cells are allowed, but only if they
+      // don't extend an existing narrow section.
       if (
-        isConnectedCellSet(remaining, rows, cols) &&
-        !hasLongThinArm(remaining, rows, cols)
+        neighbors.length === 1 &&
+        !wouldCreateLongArm(
+          candidate,
+          remaining,
+          rows,
+          cols
+        )
       ) {
-        // Keep the irregular/random shape.
-        if (rng() < 0.75) {
-          removed = true;
-          break;
-        }
-      }
-
-      // Removing this cell would disconnect the board,
-      // or would create a long thin arm.
-      remaining.add(selectedIndex);
-    }
-
-    // Safety fallback: find a perimeter cell whose removal
-    // preserves connectivity.
-    if (!removed) {
-      for (const selectedIndex of perimeter) {
-        remaining.delete(selectedIndex);
-
-        if (isConnectedCellSet(remaining, rows, cols)) {
-          removed = true;
-          break;
-        }
-
-        remaining.add(selectedIndex);
+        selectedIndex = candidate;
+        break;
       }
     }
+
+    // If every candidate was rejected, use a random
+    // frontier cell as a safety fallback.
+    if (selectedIndex === null) {
+      selectedIndex =
+        frontier[
+          Math.floor(rng() * frontier.length)
+        ];
+    }
+
+    remaining.add(selectedIndex);
   }
 
   const territories: Territory[] = [];
 
-  // Create territories using their original grid position.
-  // The ID preserves the cell's position in the temporary grid.
   for (const index of remaining) {
     territories.push({
       id: `t-${index + 1}`,
@@ -607,41 +606,20 @@ function generateBoard(territoryCount: number, rng: Rng): Board {
     });
   }
 
-  // Rebuild neighbors using only the cells that survived
-  // the erosion process.
+  // Build neighbors.
   for (const territory of territories) {
-    const index = Number(territory.id.slice(2)) - 1;
-    const row = Math.floor(index / cols);
-    const col = index % cols;
+    const index =
+      Number(territory.id.slice(2)) - 1;
 
-    const possibleNeighbors = [
-      { row: row - 1, col },
-      { row: row + 1, col },
-      { row, col: col - 1 },
-      { row, col: col + 1 },
-    ];
-
-    const neighbors: string[] = [];
-
-    for (const candidate of possibleNeighbors) {
-      if (
-        candidate.row < 0 ||
-        candidate.row >= rows ||
-        candidate.col < 0 ||
-        candidate.col >= cols
-      ) {
-        continue;
-      }
-
-      const neighborIndex =
-        candidate.row * cols + candidate.col;
-
-      if (remaining.has(neighborIndex)) {
-        neighbors.push(`t-${neighborIndex + 1}`);
-      }
-    }
-
-    territory.neighbors = neighbors;
+    territory.neighbors = getCellNeighbors(
+      index,
+      remaining,
+      rows,
+      cols
+    ).map(
+      (neighborIndex) =>
+        `t-${neighborIndex + 1}`
+    );
   }
 
   return {
@@ -651,35 +629,16 @@ function generateBoard(territoryCount: number, rng: Rng): Board {
   };
 }
 
-function isConnectedCellSet(
+function getFrontierCells(
   remaining: Set<number>,
   rows: number,
   cols: number
-): boolean {
-  if (remaining.size === 0) {
-    return true;
-  }
+): number[] {
+  const frontier = new Set<number>();
 
-  const start = remaining.values().next().value;
-
-  if (start === undefined) {
-    return true;
-  }
-
-  const visited = new Set<number>();
-  const frontier = [start];
-
-  while (frontier.length > 0) {
-    const current = frontier.pop()!;
-
-    if (visited.has(current)) {
-      continue;
-    }
-
-    visited.add(current);
-
-    const row = Math.floor(current / cols);
-    const col = current % cols;
+  for (const index of remaining) {
+    const row = Math.floor(index / cols);
+    const col = index % cols;
 
     const neighbors = [
       { row: row - 1, col },
@@ -701,86 +660,13 @@ function isConnectedCellSet(
       const neighborIndex =
         neighbor.row * cols + neighbor.col;
 
-      if (
-        remaining.has(neighborIndex) &&
-        !visited.has(neighborIndex)
-      ) {
-        frontier.push(neighborIndex);
+      if (!remaining.has(neighborIndex)) {
+        frontier.add(neighborIndex);
       }
     }
   }
 
-  return visited.size === remaining.size;
-}
-
-function hasLongThinArm(
-  remaining: Set<number>,
-  rows: number,
-  cols: number
-): boolean {
-  const visited = new Set<number>();
-
-  for (const start of remaining) {
-    if (visited.has(start)) {
-      continue;
-    }
-
-    const startNeighbors = getCellNeighbors(
-      start,
-      remaining,
-      rows,
-      cols
-    );
-
-    // Only investigate cells that are part of a thin section.
-    if (startNeighbors.length !== 2) {
-      continue;
-    }
-
-    const chain = [start];
-    const frontier = [start];
-    const chainVisited = new Set<number>([start]);
-
-    while (frontier.length > 0) {
-      const current = frontier.pop()!;
-
-      const neighbors = getCellNeighbors(
-        current,
-        remaining,
-        rows,
-        cols
-      );
-
-      for (const neighbor of neighbors) {
-        if (chainVisited.has(neighbor)) {
-          continue;
-        }
-
-        const neighborCount = getCellNeighbors(
-          neighbor,
-          remaining,
-          rows,
-          cols
-        ).length;
-
-        if (neighborCount === 2) {
-          chainVisited.add(neighbor);
-          chain.push(neighbor);
-          frontier.push(neighbor);
-        }
-      }
-    }
-
-    chain.forEach((cell) => visited.add(cell));
-
-    // A chain of 2-neighbor cells this long is
-    // considered an arm.
-    if (chain.length >= 4) {
-      return true;
-    }
-  }
-
-  return false;
+  return Array.from(frontier);
 }
 
 function getCellNeighbors(
@@ -822,45 +708,40 @@ function getCellNeighbors(
   return neighbors;
 }
 
-function getPerimeterCells(
+function wouldCreateLongArm(
+  index: number,
   remaining: Set<number>,
   rows: number,
   cols: number
-): number[] {
-  const perimeter: number[] = [];
+): boolean {
+  const testSet = new Set(remaining);
+  testSet.add(index);
 
-  for (const index of remaining) {
-    const row = Math.floor(index / cols);
-    const col = index % cols;
+  let current = index;
+  let previous = -1;
+  let length = 0;
 
-    const hasOutsideNeighbor =
-      row === 0 ||
-      row === rows - 1 ||
-      col === 0 ||
-      col === cols - 1;
-
-    if (hasOutsideNeighbor) {
-      perimeter.push(index);
-      continue;
-    }
-
-    const neighboringIndexes = [
-      index - cols,
-      index + cols,
-      index - 1,
-      index + 1,
-    ];
-
-    const hasMissingNeighbor = neighboringIndexes.some(
-      (neighborIndex) => !remaining.has(neighborIndex)
+  while (length < 4) {
+    const neighbors = getCellNeighbors(
+      current,
+      testSet,
+      rows,
+      cols
+    ).filter(
+      (neighbor) => neighbor !== previous
     );
 
-    if (hasMissingNeighbor) {
-      perimeter.push(index);
+    // We've reached the body of the map.
+    if (neighbors.length !== 1) {
+      break;
     }
+
+    previous = current;
+    current = neighbors[0];
+    length += 1;
   }
 
-  return perimeter;
+  return length >= 3;
 }
 
 function placeMines(territories: Territory[], mineCount: number, rng: Rng): string[] {
