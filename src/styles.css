@@ -40,15 +40,15 @@ button { cursor: pointer; }
 }
 
 .tile.field {
-  background: #26302a;
+  background: #2e4736;
 }
 
 .tile.mountain {
-  background: #34383d;
+  background: #3d4a5c;
 }
 
 .tile.mine {
-  background: #4a382b;
+  background: #8e5b32;
 }
 
 .tile.owned {
