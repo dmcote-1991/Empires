@@ -44,7 +44,7 @@ background: #2e4736;
 }
 
 .tile.field {
-  background: #585e4f;
+  background: #3e4237;
 }
 
 .tile.mountain {
@@ -128,4 +128,47 @@ background: #2e4736;
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+/* --------------------------------
+   Biome boundaries
+   -------------------------------- */
+
+.tile {
+  position: relative;
+}
+
+.biome-border {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.biome-border-top {
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  height: 2px;
+}
+
+.biome-border-bottom {
+  bottom: -2px;
+  left: -2px;
+  right: -2px;
+  height: 2px;
+}
+
+.biome-border-left {
+  top: -2px;
+  bottom: -2px;
+  left: -2px;
+  width: 2px;
+}
+
+.biome-border-right {
+  top: -2px;
+  bottom: -2px;
+  right: -2px;
+  width: 2px;
 }

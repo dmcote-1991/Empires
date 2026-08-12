@@ -39,7 +39,84 @@ export function BoardView({
   const currentPlayerId = gameState.turn.order[gameState.turn.currentPlayerIndex];
 
   const renderTerritory = (territory: Territory) => {
-    const owner = gameState.players.find((player) => player.id === territory.owner);
+    const owner = gameState.players.find(
+      (player) => player.id === territory.owner
+    );
+
+    const territoryIndex = Number(territory.id.slice(2)) - 1;
+
+    const territoryRow = Math.floor(
+      territoryIndex / gameState.board.dimensions.cols
+    );
+
+    const territoryCol =
+      territoryIndex % gameState.board.dimensions.cols;
+
+    const getNeighbor = (
+      row: number,
+      col: number
+    ): Territory | null => {
+      if (
+        row < 0 ||
+        row >= gameState.board.dimensions.rows ||
+        col < 0 ||
+        col >= gameState.board.dimensions.cols
+      ) {
+        return null;
+      }
+
+      const neighborIndex =
+        row * gameState.board.dimensions.cols + col;
+
+      const neighborId = `t-${neighborIndex + 1}`;
+
+      return (
+        gameState.board.territories.find(
+          (entry) => entry.id === neighborId
+        ) ?? null
+      );
+    };
+
+    const topNeighbor = getNeighbor(
+      territoryRow - 1,
+      territoryCol
+    );
+
+    const bottomNeighbor = getNeighbor(
+      territoryRow + 1,
+      territoryCol
+    );
+
+    const leftNeighbor = getNeighbor(
+      territoryRow,
+      territoryCol - 1
+    );
+
+    const rightNeighbor = getNeighbor(
+      territoryRow,
+      territoryCol + 1
+    );
+
+
+    const hasTopBiomeBoundary =
+      topNeighbor === null ||
+      topNeighbor.biome !== territory.biome;
+
+
+    const hasBottomBiomeBoundary =
+      bottomNeighbor === null ||
+      bottomNeighbor.biome !== territory.biome;
+
+
+    const hasLeftBiomeBoundary =
+      leftNeighbor === null ||
+      leftNeighbor.biome !== territory.biome;
+
+
+    const hasRightBiomeBoundary =
+      rightNeighbor === null ||
+      rightNeighbor.biome !== territory.biome;
+
     return (
       <div key={territory.id} className="tile-wrapper">
         <button
@@ -57,6 +134,22 @@ export function BoardView({
             onSelectTerritory?.(territory.id)
           }
         >
+          {hasTopBiomeBoundary && (
+            <span className="biome-border biome-border-top" />
+          )}
+
+          {hasBottomBiomeBoundary && (
+            <span className="biome-border biome-border-bottom" />
+          )}
+
+          {hasLeftBiomeBoundary && (
+            <span className="biome-border biome-border-left" />
+          )}
+
+          {hasRightBiomeBoundary && (
+            <span className="biome-border biome-border-right" />
+          )}
+
           {territory.isMine
             ? '⛏️'
             : territory.owner
