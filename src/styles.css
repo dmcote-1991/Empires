@@ -57,6 +57,17 @@ background: #2e4736;
 
 .tile.owned {
   font-weight: 700;
+  position: relative;
+  overflow: hidden;
+}
+.tile.owned::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--owner-color);
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 1;
 }
 .tile:hover { transform: translateY(-1px); }
 .sidebar { display: flex; flex-direction: column; gap: 12px; }
@@ -84,6 +95,22 @@ background: #2e4736;
 .tile.selected {
   border: 2px solid #ffffff;
   box-shadow: 0 0 0 2px #2563eb;
+}
+
+.tile.owner-border-top {
+  border-top-width: 5px;
+}
+
+.tile.owner-border-bottom {
+  border-bottom-width: 5px;
+}
+
+.tile.owner-border-left {
+  border-left-width: 5px;
+}
+
+.tile.owner-border-right {
+  border-right-width: 5px;
 }
 
 .action-menu {

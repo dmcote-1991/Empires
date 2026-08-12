@@ -77,6 +77,59 @@ export function BoardView({
       );
     };
 
+    const hasDifferentOwner = (
+      row: number,
+      col: number
+    ): boolean => {
+      if (
+        row < 0 ||
+        row >= gameState.board.dimensions.rows ||
+        col < 0 ||
+        col >= gameState.board.dimensions.cols
+      ) {
+        return true;
+      }
+
+      const neighborIndex =
+        row * gameState.board.dimensions.cols + col;
+
+      const neighborId = `t-${neighborIndex + 1}`;
+
+      const neighbor = gameState.board.territories.find(
+        (entry) => entry.id === neighborId
+      );
+
+      return !neighbor || neighbor.owner !== territory.owner;
+    };
+
+    const hasTopOwnerBoundary =
+      territory.owner !== null &&
+      hasDifferentOwner(
+        territoryRow - 1,
+        territoryCol
+      );
+
+    const hasBottomOwnerBoundary =
+      territory.owner !== null &&
+      hasDifferentOwner(
+        territoryRow + 1,
+        territoryCol
+      );
+
+    const hasLeftOwnerBoundary =
+      territory.owner !== null &&
+      hasDifferentOwner(
+        territoryRow,
+        territoryCol - 1
+      );
+
+    const hasRightOwnerBoundary =
+      territory.owner !== null &&
+      hasDifferentOwner(
+        territoryRow,
+        territoryCol + 1
+      );
+
     const topNeighbor = getNeighbor(
       territoryRow - 1,
       territoryCol
@@ -123,13 +176,43 @@ export function BoardView({
           className={`tile ${territory.biome} ${
             territory.isMine ? 'mine' : ''
           } ${territory.owner ? 'owned' : ''} ${
+            hasTopOwnerBoundary ? 'owner-border-top' : ''
+          } ${
+            hasBottomOwnerBoundary ? 'owner-border-bottom' : ''
+          } ${
+            hasLeftOwnerBoundary ? 'owner-border-left' : ''
+          } ${
+            hasRightOwnerBoundary ? 'owner-border-right' : ''
+          } ${
             selectedTerritoryId === territory.id ? 'selected' : ''
           }`}
           style={{
-            borderColor: owner
-              ? colorMap[owner.color]
-              : undefined,
-          }}
+            ...(owner
+              ? {
+                  '--owner-color': colorMap[owner.color],
+                }
+              : {}),
+
+            borderTopColor:
+              hasTopOwnerBoundary && owner
+                ? colorMap[owner.color]
+                : undefined,
+
+            borderBottomColor:
+              hasBottomOwnerBoundary && owner
+                ? colorMap[owner.color]
+                : undefined,
+
+            borderLeftColor:
+              hasLeftOwnerBoundary && owner
+                ? colorMap[owner.color]
+                : undefined,
+
+            borderRightColor:
+              hasRightOwnerBoundary && owner
+                ? colorMap[owner.color]
+                : undefined,
+          } as React.CSSProperties}
           onClick={() =>
             onSelectTerritory?.(territory.id)
           }
