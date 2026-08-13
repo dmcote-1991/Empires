@@ -58,7 +58,6 @@ background: #2e4736;
 .tile.owned {
   font-weight: 700;
   position: relative;
-  overflow: hidden;
 }
 .tile.owned::after {
   content: '';
