@@ -55,6 +55,10 @@ background: #2e4736;
   background: #8e5b32;
 }
 
+.tile.river {
+  background: #3f6673;
+}
+
 .tile.owned {
   font-weight: 700;
   position: relative;

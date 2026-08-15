@@ -24,6 +24,12 @@ export const createInitialGameState = (options: {
     rng
   );
 
+  generateRiverBiomes(
+    board.territories,
+    board.dimensions,
+    rng
+  );
+
   const mineTerritoryIds = placeMines(
     board.territories,
     options.mineCount,
@@ -1084,6 +1090,1217 @@ function generateFieldBiomes(
     if (fieldIds.has(territory.id)) {
       territory.biome = 'field';
     }
+  }
+}
+
+const MAX_RIVER_SOURCES = 10;
+
+function generateRiverBiomes(
+  territories: Territory[],
+  dimensions: { rows: number; cols: number },
+  rng: Rng
+): void {
+  if (territories.length === 0) {
+    return;
+  }
+
+  /*
+   * --------------------------------------------------------
+   * FIND VALID MOUNTAIN SOURCES
+   * --------------------------------------------------------
+   *
+   * A source must:
+   *
+   * 1. Be inside a mountain range.
+   * 2. Have at least 3 mountain neighbors.
+   * 3. Have at least one non-mountain neighbor.
+   *
+   * The source itself stays mountain. The river emerges
+   * from one of its non-mountain neighbors.
+   */
+  const mountainSources = territories.filter(
+    (territory) => {
+      if (
+        territory.biome !== 'mountain'
+      ) {
+        return false;
+      }
+
+      const mountainNeighbors =
+        countMountainNeighbors(
+          territory,
+          territories
+        );
+
+      const hasExit =
+        territory.neighbors.some(
+          (neighborId) => {
+            const neighbor =
+              territories.find(
+                (entry) =>
+                  entry.id ===
+                  neighborId
+              );
+
+            return (
+              neighbor &&
+              neighbor.biome !==
+                'mountain'
+            );
+          }
+        );
+
+      return (
+        mountainNeighbors >= 3 &&
+        hasExit
+      );
+    }
+  );
+
+  if (
+    mountainSources.length === 0
+  ) {
+    return;
+  }
+
+  shuffleArray(
+    mountainSources,
+    rng
+  );
+
+  /*
+   * We want a few major rivers, not dozens of little streams.
+   */
+  const sourceCount = Math.min(
+    MAX_RIVER_SOURCES,
+    mountainSources.length,
+    Math.max(
+      1,
+      Math.ceil(
+        territories.length / 300
+      )
+    )
+  );
+
+  /*
+   * These are the actual river territories.
+   */
+  const riverIds =
+    new Set<string>();
+
+  /*
+   * Sources remain mountains.
+   */
+  const sourceIds =
+    new Set<string>();
+
+  /*
+   * --------------------------------------------------------
+   * CREATE RIVERS
+   * --------------------------------------------------------
+   */
+  for (
+    let sourceIndex = 0;
+    sourceIndex < sourceCount;
+    sourceIndex += 1
+  ) {
+    const source =
+      mountainSources[
+        sourceIndex
+      ];
+
+    sourceIds.add(
+      source.id
+    );
+
+    /*
+     * ------------------------------------------------------
+     * FIND A COMPLETE PATH FROM THE MOUNTAIN TO THE COAST
+     * ------------------------------------------------------
+     *
+     * This is the important change.
+     *
+     * We don't greedily walk until we get stuck anymore.
+     *
+     * Instead, we search the map for an actual route to the
+     * coast.
+     */
+    const path =
+      findRiverPathToCoast(
+        source,
+        territories,
+        dimensions,
+        riverIds,
+        rng
+      );
+
+    /*
+     * If there is no route from this source to the coast,
+     * simply try the next mountain source.
+     */
+    if (
+      path.length === 0
+    ) {
+      continue;
+    }
+
+    /*
+     * Add the complete path to the river system.
+     */
+    for (
+      const territoryId of path
+    ) {
+      /*
+       * Never turn the mountain source itself into river.
+       */
+      if (
+        sourceIds.has(
+          territoryId
+        )
+      ) {
+        continue;
+      }
+
+      riverIds.add(
+        territoryId
+      );
+    }
+  }
+
+  /*
+   * --------------------------------------------------------
+   * APPLY RIVER BIOME
+   * --------------------------------------------------------
+   *
+   * Only the actual path becomes river.
+   *
+   * Mountain sources remain mountains.
+   */
+  for (
+    const territory of territories
+  ) {
+    if (
+      riverIds.has(
+        territory.id
+      ) &&
+      !sourceIds.has(
+        territory.id
+      )
+    ) {
+      territory.biome =
+        'river';
+    }
+  }
+}
+
+function findRiverPathToCoast(
+  source: Territory,
+  territories: Territory[],
+  dimensions: { rows: number; cols: number },
+  riverIds: Set<string>,
+  rng: Rng
+): string[] {
+  /*
+   * --------------------------------------------------------
+   * FIND POSSIBLE STARTING EXITS
+   * --------------------------------------------------------
+   *
+   * The river starts by leaving the mountain range.
+   */
+  const exits =
+    source.neighbors
+      .map((neighborId) =>
+        territories.find(
+          (territory) =>
+            territory.id ===
+            neighborId
+        )
+      )
+      .filter(
+        (
+          territory
+        ): territory is Territory =>
+          Boolean(territory)
+      )
+      .filter(
+        (territory) =>
+          territory.biome !==
+          'mountain'
+      );
+
+  if (
+    exits.length === 0
+  ) {
+    return [];
+  }
+
+  /*
+   * Randomize the exits so maps don't always use the same
+   * mountain outlet.
+   */
+  shuffleArray(
+    exits,
+    rng
+  );
+
+  /*
+   * Try each possible mountain exit.
+   *
+   * If one exit gets trapped, try another.
+   */
+  const rankedExits =
+    exits
+      .map((territory) => ({
+        territory,
+        score:
+          getRiverDirectionScore(
+            source,
+            territory,
+            dimensions,
+            null,
+            rng
+          ),
+      }))
+      .sort(
+        (a, b) =>
+          b.score - a.score
+      );
+
+  /*
+   * Try the best exits first.
+   */
+  for (
+    const exit of rankedExits
+  ) {
+    const path =
+      searchRiverPath(
+        source,
+        exit.territory,
+        territories,
+        dimensions,
+        riverIds,
+        rng
+      );
+
+    if (
+      path.length > 0
+    ) {
+      return path;
+    }
+  }
+
+  return [];
+}
+
+function searchRiverPath(
+  source: Territory,
+  start: Territory,
+  territories: Territory[],
+  dimensions: { rows: number; cols: number },
+  riverIds: Set<string>,
+  rng: Rng
+): string[] {
+  /*
+   * --------------------------------------------------------
+   * DEPTH-FIRST SEARCH WITH BACKTRACKING
+   * --------------------------------------------------------
+   *
+   * This is deliberately NOT a simple greedy walk.
+   *
+   * If the river goes down a dead-end:
+   *
+   *     R
+   *     R
+   *     R
+   *    M M
+   *
+   * the algorithm backs up and tries another route.
+   *
+   * Therefore a river does not simply die after 7 or 8
+   * territories because of one bad local choice.
+   */
+
+  const visited =
+    new Set<string>();
+
+  const path: string[] = [];
+
+  /*
+   * Keep the source visited so the river can never travel
+   * back into the mountain source.
+   */
+  visited.add(
+    source.id
+  );
+
+  const search = (
+    current: Territory,
+    previous: Territory | null,
+    direction:
+      | 'north'
+      | 'south'
+      | 'east'
+      | 'west'
+      | null
+  ): boolean => {
+    /*
+    * ------------------------------------------------------
+    * CONNECT TO EXISTING RIVER FIRST
+    * ------------------------------------------------------
+    *
+    * If the current territory is directly adjacent to an
+    * existing river, connect immediately.
+    *
+    * This MUST happen before the coast check so a river
+    * doesn't stop at the coast when it could connect to
+    * another river.
+    */
+    const adjacentRiver = current.neighbors
+      .map((neighborId) =>
+        territories.find(
+          (territory) =>
+            territory.id === neighborId
+        )
+      )
+      .find(
+        (territory) =>
+          territory !== undefined &&
+          riverIds.has(territory.id)
+      );
+
+    if (adjacentRiver) {
+      path.push(current.id);
+      path.push(adjacentRiver.id);
+
+      return true;
+    }
+
+    /*
+    * ------------------------------------------------------
+    * COAST REACHED
+    * ------------------------------------------------------
+    *
+    * If there is no river to connect to, the river can
+    * terminate at the edge of the map.
+    */
+    if (
+      isCoastTerritory(
+        current,
+        territories,
+        dimensions
+      )
+    ) {
+      path.push(current.id);
+
+      return true;
+    }
+
+    /*
+    * Mark this territory as visited for this search.
+    */
+    visited.add(
+      current.id
+    );
+
+    /*
+     * ------------------------------------------------------
+     * GET CANDIDATES
+     * ------------------------------------------------------
+     */
+    const candidates =
+      current.neighbors
+        .map((neighborId) =>
+          territories.find(
+            (territory) =>
+              territory.id ===
+              neighborId
+          )
+        )
+        .filter(
+          (
+            territory
+          ): territory is Territory =>
+            Boolean(territory)
+        )
+        /*
+         * Don't go backwards.
+         */
+        .filter(
+          (territory) =>
+            territory.id !==
+            previous?.id
+        )
+        /*
+         * Don't enter mountains.
+         */
+        .filter(
+          (territory) =>
+            territory.biome !==
+            'mountain'
+        )
+        /*
+         * Don't revisit territory while searching this path.
+         */
+        .filter(
+          (territory) =>
+            !visited.has(
+              territory.id
+            )
+        );
+
+    /*
+     * If there are no candidates, this is a dead end.
+     *
+     * Returning false causes the caller to backtrack.
+     */
+    if (
+      candidates.length === 0
+    ) {
+      return false;
+    }
+
+    /*
+     * ------------------------------------------------------
+     * SCORE CANDIDATES
+     * ------------------------------------------------------
+     *
+     * South is preferred.
+     * Continuing in the same direction is preferred.
+     * East/west movement is allowed for meandering.
+     * North is strongly discouraged.
+     */
+    const scored =
+      candidates.map(
+        (territory) => {
+          let score =
+            getRiverDirectionScore(
+              current,
+              territory,
+              dimensions,
+              direction,
+              rng,
+              territories,
+              riverIds
+            );
+
+          /*
+          * ----------------------------------------------------
+          * RIVER BRIDGE PRIORITY
+          * ----------------------------------------------------
+          *
+          * If this candidate is directly adjacent to an
+          * existing river, this territory is the bridge.
+          *
+          * Example:
+          *
+          *     R . R
+          *
+          * If the river is currently at the left R, the "."
+          * becomes extremely attractive because claiming it
+          * will allow the next step to connect to the right R.
+          *
+          * This is intentionally a very large bonus.
+          * It makes connecting to another river effectively
+          * mandatory once the bridge is available.
+          */
+          const hasAdjacentRiver =
+            territory.neighbors.some(
+              (neighborId) =>
+                riverIds.has(
+                  neighborId
+                )
+            );
+
+          if (hasAdjacentRiver) {
+            score += 25;
+          }
+
+          return {
+            territory,
+            score,
+          };
+        }
+      );
+
+    /*
+    * Sort primarily by score.
+    */
+    scored.sort(
+      (a, b) =>
+        b.score - a.score
+    );
+
+    /*
+    * Shuffle candidates whose scores are close together.
+    *
+    * Without this, the best candidate almost always wins.
+    *
+    * With this, if:
+    *
+    *   south = 8.2
+    *   east  = 7.9
+    *   west  = 7.7
+    *
+    * the river has a real chance to choose east or west.
+    */
+    for (
+      let index = 0;
+      index < scored.length - 1;
+      index += 1
+    ) {
+      const currentScore =
+        scored[index].score;
+
+      const nextScore =
+        scored[index + 1].score;
+
+      if (
+        Math.abs(
+          currentScore -
+            nextScore
+        ) <= 2
+      ) {
+        if (rng() < 0.45) {
+          [
+            scored[index],
+            scored[index + 1],
+          ] = [
+            scored[index + 1],
+            scored[index],
+          ];
+        }
+      }
+    }
+
+    /*
+     * ------------------------------------------------------
+     * TRY EACH ROUTE
+     * ------------------------------------------------------
+     *
+     * Otherwise, continue searching normally.
+     *
+     * Backtracking still allows the river to abandon a bad
+     * route and try another route toward the coast.
+     */
+    for (
+      const candidate of scored
+    ) {
+      const nextDirection =
+        getDirection(
+          current,
+          candidate.territory,
+          dimensions
+        );
+
+      if (
+        search(
+          candidate.territory,
+          current,
+          nextDirection
+        )
+      ) {
+        path.push(
+          current.id
+        );
+
+        return true;
+      }
+    }
+
+    /*
+     * None of the routes from this territory reached the
+     * coast.
+     *
+     * Backtrack.
+     */
+    return false;
+  };
+
+  const success =
+    search(
+      start,
+      source,
+      null
+    );
+
+  if (!success) {
+    return [];
+  }
+
+  /*
+   * The recursive search builds the path backwards.
+   *
+   * Reverse it so it runs:
+   *
+   * mountain -> coast
+   */
+  return path.reverse();
+}
+
+function getRiverDirectionScore(
+  current: Territory,
+  next: Territory,
+  dimensions: { rows: number; cols: number },
+  previousDirection:
+    | 'north'
+    | 'south'
+    | 'east'
+    | 'west'
+    | null,
+  rng: Rng,
+  territories?: Territory[],
+  riverIds?: Set<string>
+): number {
+  const direction = getDirection(
+    current,
+    next,
+    dimensions
+  );
+
+  let score = 0;
+
+  /*
+   * ========================================================
+   * 1. SOUTHWARD MOVEMENT
+   * ========================================================
+   *
+   * This is one third of the river's behavior.
+   *
+   * South should be preferred, but not overwhelmingly so.
+   */
+  if (direction === 'south') {
+    score += 3;
+  }
+
+  /*
+   * East/west movement is almost as desirable as south.
+   *
+   * This gives the river room to meander.
+   */
+  if (
+    direction === 'east' ||
+    direction === 'west'
+  ) {
+    score += 2.5;
+  }
+
+  /*
+   * North is allowed because terrain may require the river
+   * to temporarily move north.
+   */
+  if (direction === 'north') {
+    score -= 2;
+  }
+
+  /*
+   * ========================================================
+   * 2. CONTINUE THE CURRENT DIRECTION
+   * ========================================================
+   *
+   * This prevents the river from looking like:
+   *
+   *     ↓ → ↓ → ↓ → ↓
+   *
+   * and encourages broader bends:
+   *
+   *     → → → ↓
+   *             ↓
+   *             ↓
+   *             ← ←
+   */
+  if (
+    previousDirection &&
+    direction === previousDirection
+  ) {
+    score += 2.5;
+  }
+
+  /*
+   * Encourage a change from south into a horizontal bend.
+   */
+  if (
+    previousDirection === 'south' &&
+    (
+      direction === 'east' ||
+      direction === 'west'
+    )
+  ) {
+    score += 2;
+  }
+
+  /*
+   * Encourage returning south after a horizontal bend.
+   */
+  if (
+    (
+      previousDirection === 'east' ||
+      previousDirection === 'west'
+    ) &&
+    direction === 'south'
+  ) {
+    score += 2;
+  }
+
+  /*
+   * ========================================================
+   * 3. AVOID SHARP REVERSALS
+   * ========================================================
+   */
+  if (
+    previousDirection === 'south' &&
+    direction === 'north'
+  ) {
+    score -= 8;
+  }
+
+  if (
+    previousDirection === 'north' &&
+    direction === 'south'
+  ) {
+    score -= 8;
+  }
+
+  if (
+    previousDirection === 'east' &&
+    direction === 'west'
+  ) {
+    score -= 8;
+  }
+
+  if (
+    previousDirection === 'west' &&
+    direction === 'east'
+  ) {
+    score -= 8;
+  }
+
+  /*
+   * ========================================================
+   * 4. MOUNTAIN AVOIDANCE
+   * ========================================================
+   *
+   * This is another one third of the behavior.
+   *
+   * We don't simply ask:
+   *
+   * "Does this territory touch a mountain?"
+   *
+   * Instead we calculate the distance to nearby mountains.
+   *
+   * The farther away the territory is, the better.
+   *
+   * When there are mountains on BOTH sides, the center
+   * between them naturally becomes attractive.
+   */
+  if (territories) {
+    const mountainDistance =
+      getMountainDistance(
+        next,
+        territories,
+        dimensions
+      );
+
+    /*
+     * Cap the effect so mountain avoidance doesn't become
+     * more important than the other two factors.
+     */
+    const mountainScore =
+      Math.min(
+        mountainDistance / 6,
+        1
+      );
+
+    score +=
+      mountainScore * 3;
+  }
+
+  /*
+   * ========================================================
+   * 5. RIVER ATTRACTION
+   * ========================================================
+   *
+   * This is the final third.
+   *
+   * Existing rivers should attract the new river.
+   *
+   * This allows tributaries to eventually converge.
+   */
+  if (
+    territories &&
+    riverIds
+  ) {
+    const riverDistance =
+      getRiverDistance(
+        next,
+        territories,
+        riverIds,
+        dimensions
+      );
+
+    /*
+     * Closer existing rivers = stronger attraction.
+     */
+    const riverAttraction =
+      Math.max(
+        0,
+        1 -
+          riverDistance / 6
+      );
+
+    score +=
+      riverAttraction * 3;
+  }
+
+  /*
+  * ========================================================
+  * DIRECT RIVER CONNECTION
+  * ========================================================
+  *
+  * If this territory is immediately adjacent to an existing
+  * river, strongly prefer it.
+  *
+  * This prevents rivers from stopping one territory short
+  * when there is an actual connection available.
+  */
+    if (
+      territories &&
+      riverIds
+    ) {
+      const riverDistance =
+        getRiverDistance(
+          next,
+          territories,
+          riverIds,
+          dimensions
+        );
+
+      if (riverDistance === 1) {
+        score += 6;
+      }
+    }
+
+  /*
+   * ========================================================
+   * RANDOMNESS
+   * ========================================================
+   *
+   * Small randomness prevents identical paths while keeping
+   * the three major geographic forces dominant.
+   */
+  score +=
+    rng() * 2;
+
+  return score;
+}
+
+function getMountainDistance(
+  territory: Territory,
+  territories: Territory[],
+  dimensions: { rows: number; cols: number }
+): number {
+  const territoryIndex =
+    Number(
+      territory.id.slice(2)
+    ) - 1;
+
+  const territoryRow =
+    Math.floor(
+      territoryIndex /
+        dimensions.cols
+    );
+
+  const territoryCol =
+    territoryIndex %
+    dimensions.cols;
+
+  let closestDistance =
+    Infinity;
+
+  for (
+    const candidate of territories
+  ) {
+    if (
+      candidate.biome !==
+      'mountain'
+    ) {
+      continue;
+    }
+
+    const candidateIndex =
+      Number(
+        candidate.id.slice(2)
+      ) - 1;
+
+    const candidateRow =
+      Math.floor(
+        candidateIndex /
+          dimensions.cols
+      );
+
+    const candidateCol =
+      candidateIndex %
+      dimensions.cols;
+
+    const distance =
+      Math.abs(
+        territoryRow -
+          candidateRow
+      ) +
+      Math.abs(
+        territoryCol -
+          candidateCol
+      );
+
+    if (
+      distance <
+      closestDistance
+    ) {
+      closestDistance =
+        distance;
+    }
+  }
+
+  return closestDistance;
+}
+
+function getRiverDistance(
+  territory: Territory,
+  territories: Territory[],
+  riverIds: Set<string>,
+  dimensions: { rows: number; cols: number }
+): number {
+  const territoryIndex =
+    Number(
+      territory.id.slice(2)
+    ) - 1;
+
+  const territoryRow =
+    Math.floor(
+      territoryIndex /
+        dimensions.cols
+    );
+
+  const territoryCol =
+    territoryIndex %
+    dimensions.cols;
+
+  let closestDistance =
+    Infinity;
+
+  for (
+    const riverId of riverIds
+  ) {
+    const riverTerritory =
+      territories.find(
+        (entry) =>
+          entry.id === riverId
+      );
+
+    if (!riverTerritory) {
+      continue;
+    }
+
+    const riverIndex =
+      Number(
+        riverTerritory.id.slice(2)
+      ) - 1;
+
+    const riverRow =
+      Math.floor(
+        riverIndex /
+          dimensions.cols
+      );
+
+    const riverCol =
+      riverIndex %
+      dimensions.cols;
+
+    const distance =
+      Math.abs(
+        territoryRow -
+          riverRow
+      ) +
+      Math.abs(
+        territoryCol -
+          riverCol
+      );
+
+    if (
+      distance <
+      closestDistance
+    ) {
+      closestDistance =
+        distance;
+    }
+  }
+
+  return closestDistance;
+}
+
+function isCoastTerritory(
+  territory: Territory,
+  territories: Territory[],
+  dimensions: { rows: number; cols: number }
+): boolean {
+  const index =
+    Number(
+      territory.id.slice(2)
+    ) - 1;
+
+  const row =
+    Math.floor(
+      index /
+        dimensions.cols
+    );
+
+  const col =
+    index %
+    dimensions.cols;
+
+  if (
+    row === 0 ||
+    row === dimensions.rows - 1 ||
+    col === 0 ||
+    col === dimensions.cols - 1
+  ) {
+    return true;
+  }
+
+  const possibleNeighbors = [
+    {
+      row: row - 1,
+      col,
+    },
+    {
+      row: row + 1,
+      col,
+    },
+    {
+      row,
+      col: col - 1,
+    },
+    {
+      row,
+      col: col + 1,
+    },
+  ];
+
+  for (
+    const neighbor of possibleNeighbors
+  ) {
+    if (
+      neighbor.row < 0 ||
+      neighbor.row >= dimensions.rows ||
+      neighbor.col < 0 ||
+      neighbor.col >= dimensions.cols
+    ) {
+      return true;
+    }
+
+    const neighborIndex =
+      neighbor.row *
+        dimensions.cols +
+      neighbor.col;
+
+    const neighborId =
+      `t-${neighborIndex + 1}`;
+
+    const exists =
+      territories.some(
+        (entry) =>
+          entry.id === neighborId
+      );
+
+    if (!exists) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function getDirection(
+  current: Territory,
+  next: Territory,
+  dimensions: { rows: number; cols: number }
+):
+  | 'north'
+  | 'south'
+  | 'east'
+  | 'west' {
+  const currentIndex =
+    Number(
+      current.id.slice(2)
+    ) - 1;
+
+  const nextIndex =
+    Number(
+      next.id.slice(2)
+    ) - 1;
+
+  const currentRow =
+    Math.floor(
+      currentIndex /
+        dimensions.cols
+    );
+
+  const currentCol =
+    currentIndex %
+    dimensions.cols;
+
+  const nextRow =
+    Math.floor(
+      nextIndex /
+        dimensions.cols
+    );
+
+  const nextCol =
+    nextIndex %
+    dimensions.cols;
+
+  if (
+    nextRow > currentRow
+  ) {
+    return 'south';
+  }
+
+  if (
+    nextRow < currentRow
+  ) {
+    return 'north';
+  }
+
+  if (
+    nextCol > currentCol
+  ) {
+    return 'east';
+  }
+
+  return 'west';
+}
+
+function shuffleArray<T>(
+  array: T[],
+  rng: Rng
+): void {
+  for (
+    let index = array.length - 1;
+    index > 0;
+    index -= 1
+  ) {
+    const randomIndex =
+      Math.floor(
+        rng() *
+          (index + 1)
+      );
+
+    [
+      array[index],
+      array[randomIndex],
+    ] = [
+      array[randomIndex],
+      array[index],
+    ];
   }
 }
 
