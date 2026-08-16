@@ -30,6 +30,11 @@ export const createInitialGameState = (options: {
     rng
   );
 
+  fillEnclosedBoardHoles(
+    board.territories,
+    board.dimensions
+  );
+
   const mineTerritoryIds = placeMines(
     board.territories,
     options.mineCount,
@@ -730,6 +735,252 @@ function getCellNeighbors(
   }
 
   return neighbors;
+}
+
+function fillEnclosedBoardHoles(
+  territories: Territory[],
+  dimensions: { rows: number; cols: number }
+): void {
+  const { rows, cols } = dimensions;
+
+  const existingCells = new Set<number>();
+
+  for (const territory of territories) {
+    const index =
+      Number(territory.id.slice(2)) - 1;
+
+    existingCells.add(index);
+  }
+
+  /*
+   * Find every empty cell that is connected to the
+   * outside edge of the temporary grid.
+   *
+   * Those cells are NOT holes.
+   */
+  const outsideCells = new Set<number>();
+  const queue: number[] = [];
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let col = 0; col < cols; col += 1) {
+      if (
+        row !== 0 &&
+        row !== rows - 1 &&
+        col !== 0 &&
+        col !== cols - 1
+      ) {
+        continue;
+      }
+
+      const index = row * cols + col;
+
+      if (
+        !existingCells.has(index) &&
+        !outsideCells.has(index)
+      ) {
+        outsideCells.add(index);
+        queue.push(index);
+      }
+    }
+  }
+
+  /*
+   * Flood-fill all empty space connected to the
+   * outside of the map.
+   */
+  let queueIndex = 0;
+
+  while (queueIndex < queue.length) {
+    const current = queue[queueIndex];
+    queueIndex += 1;
+
+    const row = Math.floor(current / cols);
+    const col = current % cols;
+
+    const neighbors = [
+      { row: row - 1, col },
+      { row: row + 1, col },
+      { row, col: col - 1 },
+      { row, col: col + 1 },
+    ];
+
+    for (const neighbor of neighbors) {
+      if (
+        neighbor.row < 0 ||
+        neighbor.row >= rows ||
+        neighbor.col < 0 ||
+        neighbor.col >= cols
+      ) {
+        continue;
+      }
+
+      const neighborIndex =
+        neighbor.row * cols + neighbor.col;
+
+      if (
+        existingCells.has(neighborIndex) ||
+        outsideCells.has(neighborIndex)
+      ) {
+        continue;
+      }
+
+      outsideCells.add(neighborIndex);
+      queue.push(neighborIndex);
+    }
+  }
+
+  /*
+   * Any empty cell that was NOT reached by the flood-fill
+   * is enclosed inside the map and therefore needs to
+   * become a territory.
+   */
+  const holeCells: number[] = [];
+
+  for (let index = 0; index < rows * cols; index += 1) {
+    if (
+      !existingCells.has(index) &&
+      !outsideCells.has(index)
+    ) {
+      holeCells.push(index);
+    }
+  }
+
+  if (holeCells.length === 0) {
+    return;
+  }
+
+  /*
+   * Assign each hole the most common biome among its
+   * immediately adjacent EXISTING territories.
+   */
+  for (const index of holeCells) {
+    const row = Math.floor(index / cols);
+    const col = index % cols;
+
+    const adjacentBiomes: string[] = [];
+
+    const neighbors = [
+      { row: row - 1, col },
+      { row: row + 1, col },
+      { row, col: col - 1 },
+      { row, col: col + 1 },
+    ];
+
+    for (const neighbor of neighbors) {
+      if (
+        neighbor.row < 0 ||
+        neighbor.row >= rows ||
+        neighbor.col < 0 ||
+        neighbor.col >= cols
+      ) {
+        continue;
+      }
+
+      const neighborIndex =
+        neighbor.row * cols + neighbor.col;
+
+      if (!existingCells.has(neighborIndex)) {
+        continue;
+      }
+
+      const neighborTerritory =
+        territories.find(
+          (territory) =>
+            Number(territory.id.slice(2)) - 1 ===
+            neighborIndex
+        );
+
+      if (neighborTerritory) {
+        adjacentBiomes.push(
+          neighborTerritory.biome
+        );
+      }
+    }
+
+    const biomeCounts = new Map<string, number>();
+
+    for (const biome of adjacentBiomes) {
+      biomeCounts.set(
+        biome,
+        (biomeCounts.get(biome) ?? 0) + 1
+      );
+    }
+
+    let mostCommonBiome = 'forest';
+    let highestCount = 0;
+
+    for (const [biome, count] of biomeCounts) {
+      if (count > highestCount) {
+        mostCommonBiome = biome;
+        highestCount = count;
+      }
+    }
+
+    territories.push({
+      id: `t-${index + 1}`,
+      owner: null,
+      level: 1,
+      neighbors: [],
+      isMine: false,
+      biome: mostCommonBiome as Territory['biome'],
+    });
+  }
+
+  /*
+   * Rebuild neighbors now that the holes have become
+   * territories.
+   */
+  const allTerritoriesByIndex = new Map<
+    number,
+    Territory
+  >();
+
+  for (const territory of territories) {
+    const index =
+      Number(territory.id.slice(2)) - 1;
+
+    allTerritoriesByIndex.set(
+      index,
+      territory
+    );
+  }
+
+  for (const territory of territories) {
+    const index =
+      Number(territory.id.slice(2)) - 1;
+
+    const row = Math.floor(index / cols);
+    const col = index % cols;
+
+    const neighborIndexes = [
+      { row: row - 1, col },
+      { row: row + 1, col },
+      { row, col: col - 1 },
+      { row, col: col + 1 },
+    ];
+
+    territory.neighbors = neighborIndexes
+      .filter(
+        (neighbor) =>
+          neighbor.row >= 0 &&
+          neighbor.row < rows &&
+          neighbor.col >= 0 &&
+          neighbor.col < cols
+      )
+      .map(
+        (neighbor) =>
+          neighbor.row * cols + neighbor.col
+      )
+      .filter((neighborIndex) =>
+        allTerritoriesByIndex.has(
+          neighborIndex
+        )
+      )
+      .map(
+        (neighborIndex) =>
+          `t-${neighborIndex + 1}`
+      );
+  }
 }
 
 function wouldCreateLongArm(
