@@ -24,15 +24,15 @@ export const createInitialGameState = (options: {
     rng
   );
 
+  fillEnclosedBoardHoles(
+    board.territories,
+    board.dimensions
+  );
+
   generateRiverBiomes(
     board.territories,
     board.dimensions,
     rng
-  );
-
-  fillEnclosedBoardHoles(
-    board.territories,
-    board.dimensions
   );
 
   const mineTerritoryIds = placeMines(
