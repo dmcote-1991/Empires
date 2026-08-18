@@ -26,6 +26,7 @@ export const createInitialGameState = (options: {
 
   generateMountainBiomes(
     board.territories,
+    board.dimensions,
     options.mineCount,
     rng
   );
@@ -48,6 +49,7 @@ export const createInitialGameState = (options: {
 
   const mineTerritoryIds = placeMines(
     board.territories,
+    board.dimensions,
     options.mineCount,
     rng
   );
@@ -1286,6 +1288,7 @@ const MAX_MOUNTAIN_ATTEMPTS = 20;
 
 function generateMountainBiomes(
   territories: Territory[],
+  dimensions: { rows: number; cols: number },
   mineCount: number,
   rng: Rng
 ): void {
@@ -1408,10 +1411,11 @@ function generateMountainBiomes(
     const mineCandidates = territories.filter(
       (territory) =>
         territory.biome === 'mountain' &&
-        countMountainNeighbors(
+        hasEightMountainNeighbors(
           territory,
-          territories
-        ) >= 3
+          territories,
+          dimensions
+        )
     );
 
     if (mineCandidates.length >= mineCount) {
@@ -1421,6 +1425,7 @@ function generateMountainBiomes(
 
   expandMountainsForMines(
     territories,
+    dimensions,
     mineCount
   );
 }
@@ -1596,15 +1601,12 @@ function generateFieldBiomes(
         territory.neighbors
           .map((neighborId) =>
             forestTerritories.find(
-              (entry) =>
-                entry.id === neighborId
+              (entry) => entry.id === neighborId
             )
           )
           .filter(
-            (
-              neighbor
-            ): neighbor is Territory =>
-              Boolean(neighbor) &&
+            (neighbor): neighbor is Territory =>
+              neighbor !== undefined &&
               fieldIds.has(neighbor.id)
           );
 
@@ -2945,32 +2947,174 @@ function countMountainNeighbors(
   }).length;
 }
 
+function hasEightMountainNeighbors(
+  territory: Territory,
+  territories: Territory[],
+  dimensions: { rows: number; cols: number }
+): boolean {
+  const index =
+    Number(territory.id.slice(2)) - 1;
+
+  const row =
+    Math.floor(index / dimensions.cols);
+
+  const col =
+    index % dimensions.cols;
+
+  // A mine needs all 8 surrounding cells,
+  // so edge territories can never be mines.
+  if (
+    row === 0 ||
+    row === dimensions.rows - 1 ||
+    col === 0 ||
+    col === dimensions.cols - 1
+  ) {
+    return false;
+  }
+
+  for (let rowOffset = -1; rowOffset <= 1; rowOffset += 1) {
+    for (let colOffset = -1; colOffset <= 1; colOffset += 1) {
+      if (
+        rowOffset === 0 &&
+        colOffset === 0
+      ) {
+        continue;
+      }
+
+      const neighborRow =
+        row + rowOffset;
+
+      const neighborCol =
+        col + colOffset;
+
+      const neighborIndex =
+        neighborRow * dimensions.cols +
+        neighborCol;
+
+      const neighbor =
+        territories.find(
+          (entry) =>
+            Number(entry.id.slice(2)) - 1 ===
+            neighborIndex
+        );
+
+      if (
+        !neighbor ||
+        neighbor.biome !== 'mountain'
+      ) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+function hasPotentialMineNeighbors(
+  territory: Territory,
+  territories: Territory[],
+  dimensions: { rows: number; cols: number }
+): boolean {
+  const index =
+    Number(territory.id.slice(2)) - 1;
+
+  const row =
+    Math.floor(index / dimensions.cols);
+
+  const col =
+    index % dimensions.cols;
+
+  if (
+    row === 0 ||
+    row === dimensions.rows - 1 ||
+    col === 0 ||
+    col === dimensions.cols - 1
+  ) {
+    return false;
+  }
+
+  let mountainNeighbors = 0;
+
+  for (let rowOffset = -1; rowOffset <= 1; rowOffset += 1) {
+    for (let colOffset = -1; colOffset <= 1; colOffset += 1) {
+      if (
+        rowOffset === 0 &&
+        colOffset === 0
+      ) {
+        continue;
+      }
+
+      const neighborRow =
+        row + rowOffset;
+
+      const neighborCol =
+        col + colOffset;
+
+      const neighborIndex =
+        neighborRow * dimensions.cols +
+        neighborCol;
+
+      const neighbor =
+        territories.find(
+          (entry) =>
+            Number(entry.id.slice(2)) - 1 ===
+            neighborIndex
+        );
+
+      if (
+        neighbor?.biome === 'mountain'
+      ) {
+        mountainNeighbors += 1;
+      }
+    }
+  }
+
+  return mountainNeighbors >= 7;
+}
 
 function expandMountainsForMines(
   territories: Territory[],
+  dimensions: { rows: number; cols: number },
   mineCount: number
 ): void {
   while (
     territories.filter(
       (territory) =>
         territory.biome === 'mountain' &&
-        countMountainNeighbors(territory, territories) >= 3
+        hasEightMountainNeighbors(
+          territory,
+          territories,
+          dimensions
+        )
     ).length < mineCount
   ) {
     const candidate = territories
-      .filter((territory) => territory.biome === 'field')
+      .filter(
+        (territory) =>
+          territory.biome === 'field' &&
+          hasPotentialMineNeighbors(
+            territory,
+            territories,
+            dimensions
+          )
+      )
       .sort((a, b) => {
-        const aMountainNeighbors = countMountainNeighbors(
-          a,
-          territories
-        );
+        const aMountainNeighbors =
+          countMountainNeighbors(
+            a,
+            territories
+          );
 
-        const bMountainNeighbors = countMountainNeighbors(
-          b,
-          territories
-        );
+        const bMountainNeighbors =
+          countMountainNeighbors(
+            b,
+            territories
+          );
 
-        return bMountainNeighbors - aMountainNeighbors;
+        return (
+          bMountainNeighbors -
+          aMountainNeighbors
+        );
       })[0];
 
     if (!candidate) {
@@ -2983,6 +3127,7 @@ function expandMountainsForMines(
 
 function placeMines(
   territories: Territory[],
+  dimensions: { rows: number; cols: number },
   mineCount: number,
   rng: Rng
 ): string[] {
@@ -2991,7 +3136,11 @@ function placeMines(
   const candidateTerritories = territories.filter(
     (territory) =>
       territory.biome === 'mountain' &&
-      countMountainNeighbors(territory, territories) >= 3
+      hasEightMountainNeighbors(
+        territory,
+        territories,
+        dimensions
+      )
   );
 
   // Shuffle candidates.
@@ -3013,9 +3162,7 @@ function placeMines(
     ];
   }
 
-  for (
-    const territory of candidateTerritories
-  ) {
+  for (const territory of candidateTerritories) {
     if (mineTerritoryIds.length >= mineCount) {
       break;
     }
