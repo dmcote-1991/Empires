@@ -1,5 +1,5 @@
 import { GameState, Territory } from '../types';
-import { getAvailableActions } from '../engine/game';
+import { getAvailableActions, canPlaceSettlement } from '../engine/game';
 
 interface BoardViewProps {
   gameState: GameState;
@@ -53,6 +53,13 @@ export function BoardView({
 }: BoardViewProps) {
   const currentPlayerId = gameState.turn.order[gameState.turn.currentPlayerIndex];
 
+  const currentPlayer = gameState.players.find(
+    (player) => player.id === currentPlayerId
+  );
+
+  const isStartingTurn =
+    currentPlayer?.territoryIds.length === 0;
+
   const renderTerritory = (territory: Territory) => {
     const owner = gameState.players.find(
       (player) => player.id === territory.owner
@@ -62,6 +69,14 @@ export function BoardView({
       gameState.board.settlements.find(
         (settlement) =>
           settlement.territoryId === territory.id
+      );
+
+    const isSettlementOption =
+      isStartingTurn &&
+      !territory.owner &&
+      canPlaceSettlement(
+        gameState.board,
+        territory
       );
 
     const territoryIndex = Number(territory.id.slice(2)) - 1;
@@ -206,6 +221,8 @@ export function BoardView({
             hasRightOwnerBoundary ? 'owner-border-right' : ''
           } ${
             selectedTerritoryId === territory.id ? 'selected' : ''
+          } ${
+            isSettlementOption ? 'settlement-option' : ''
           }`}
           style={{
             ...(owner

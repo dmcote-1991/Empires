@@ -120,16 +120,103 @@ export const getGameSummary = (state: GameState) => ({
 
 export const getValidStartingTerritories = (board: Board): Territory[] => {
   return board.territories.filter((territory) => {
-    if (territory.isMine || territory.biome === 'river') {
+    if (territory.isMine) {
       return false;
     }
+
+    if (!canPlaceSettlement(board, territory)) {
+      return false;
+    }
+
     const hasMineNeighbor = territory.neighbors.some((neighborId) => {
-      const neighbor = board.territories.find((entry) => entry.id === neighborId);
+      const neighbor = board.territories.find(
+        (entry) => entry.id === neighborId
+      );
+
       return Boolean(neighbor?.isMine);
     });
+
     return !hasMineNeighbor;
   });
 };
+
+export function canPlaceSettlement(
+  board: Board,
+  territory: Territory
+): boolean {
+  // Settlement itself must be forest or field.
+  if (
+    territory.biome !== 'forest' &&
+    territory.biome !== 'field'
+  ) {
+    return false;
+  }
+
+  const index =
+    Number(territory.id.slice(2)) - 1;
+
+  const row = Math.floor(
+    index / board.dimensions.cols
+  );
+
+  const col =
+    index % board.dimensions.cols;
+
+  /*
+   * Check all 8 surrounding cells:
+   *
+   * NW  N  NE
+   *  W  X   E
+   * SW  S  SE
+   *
+   * Unlike territory.neighbors, this includes diagonals.
+   */
+  for (let rowOffset = -1; rowOffset <= 1; rowOffset += 1) {
+    for (let colOffset = -1; colOffset <= 1; colOffset += 1) {
+      // Skip the territory itself.
+      if (rowOffset === 0 && colOffset === 0) {
+        continue;
+      }
+
+      const neighborRow = row + rowOffset;
+      const neighborCol = col + colOffset;
+
+      // Outside the board grid is fine.
+      if (
+        neighborRow < 0 ||
+        neighborRow >= board.dimensions.rows ||
+        neighborCol < 0 ||
+        neighborCol >= board.dimensions.cols
+      ) {
+        continue;
+      }
+
+      const neighborIndex =
+        neighborRow * board.dimensions.cols +
+        neighborCol;
+
+      const neighbor = board.territories.find(
+        (entry) =>
+          Number(entry.id.slice(2)) - 1 ===
+          neighborIndex
+      );
+
+      /*
+       * If there is a territory touching this one,
+       * it must be forest or field.
+       */
+      if (
+        neighbor &&
+        neighbor.biome !== 'forest' &&
+        neighbor.biome !== 'field'
+      ) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
 
 export const isConnectedTerritorySet = (territories: Territory[]): boolean => {
   if (territories.length === 0) {
@@ -294,7 +381,7 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
       currentPlayer.territoryIds.length === 0;
 
     const validClaim = isStartingTurn
-      ? !target.isMine
+      ? !target.isMine && canPlaceSettlement(state.board, target)
       : target.neighbors.some((neighborId) =>
           currentPlayer.territoryIds.includes(neighborId)
         );
@@ -303,7 +390,7 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
       return {
         success: false,
         reason: isStartingTurn
-          ? 'Invalid starting territory'
+          ? 'Settlement must be placed on forest or field with no mountain or river touching it'
           : 'Territory must be adjacent to your territory',
         state,
       };
