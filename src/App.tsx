@@ -38,6 +38,14 @@ function App() {
   const summary = useMemo(() => (gameState ? getGameSummary(gameState) : null), [gameState]);
 
   useEffect(() => {
+    const saved = loadGameState();
+
+    if (saved) {
+      setGameState(saved);
+    }
+  }, []);
+
+  useEffect(() => {
     if (gameState) {
       saveGameState(gameState);
     }
