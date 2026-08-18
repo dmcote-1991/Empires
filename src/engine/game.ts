@@ -1450,41 +1450,34 @@ function generateFieldBiomes(
   const fieldIds = new Set<string>();
 
   /*
-   * Use several independent seeds instead of one seed.
+   * --------------------------------------------------------
+   * CREATE MULTIPLE SEPARATED CLEARINGS
+   * --------------------------------------------------------
    *
-   * This creates scattered clearings throughout the forest
-   * instead of one giant connected field.
+   * The number of blobs scales with the amount of field.
+   *
+   * Larger maps therefore get more individual clearings
+   * instead of one or two enormous geometric fields.
    */
   const blobCount = Math.max(
     2,
-    Math.round(targetFieldCount / 10)
+    Math.min(
+      20,
+      Math.round(targetFieldCount / 12)
+    )
   );
 
   const shuffled = [...forestTerritories];
 
-  for (let index = shuffled.length - 1; index > 0; index -= 1) {
-    const randomIndex = Math.floor(
-      rng() * (index + 1)
-    );
-
-    [shuffled[index], shuffled[randomIndex]] = [
-      shuffled[randomIndex],
-      shuffled[index],
-    ];
-  }
-
-  const seedCount = Math.min(
-    blobCount,
-    shuffled.length,
-    targetFieldCount
-  );
+  shuffleArray(shuffled, rng);
 
   /*
-   * Pick seeds that are reasonably separated from
-   * existing field seeds.
+   * Pick seeds that are not directly adjacent.
+   *
+   * This keeps the initial clearings separated.
    */
   for (const territory of shuffled) {
-    if (fieldIds.size >= seedCount) {
+    if (fieldIds.size >= blobCount) {
       break;
     }
 
@@ -1498,12 +1491,11 @@ function generateFieldBiomes(
   }
 
   /*
-   * If the map is small and we couldn't find enough
-   * separated seeds, fill the remaining seed slots.
+   * Fallback for unusually dense/small maps.
    */
-  if (fieldIds.size < seedCount) {
+  if (fieldIds.size < blobCount) {
     for (const territory of shuffled) {
-      if (fieldIds.size >= seedCount) {
+      if (fieldIds.size >= blobCount) {
         break;
       }
 
@@ -1512,11 +1504,21 @@ function generateFieldBiomes(
   }
 
   /*
-   * Grow each clearing organically.
+   * --------------------------------------------------------
+   * GROW THE CLEARINGS
+   * --------------------------------------------------------
    *
-   * Unlike mountains, we don't reward long chains.
-   * Territories with several field neighbors are favored,
-   * which causes each clearing to become a compact blob.
+   * Each iteration evaluates the entire field frontier.
+   *
+   * The important difference from the old version is that
+   * we DON'T simply reward lots of field neighbors.
+   *
+   * Instead we reward:
+   *
+   *   - some connection to the field
+   *   - irregular edges
+   *   - occasional protrusions
+   *   - avoiding perfectly filled corners
    */
   while (fieldIds.size < targetFieldCount) {
     const frontier = forestTerritories.filter(
@@ -1532,38 +1534,142 @@ function generateFieldBiomes(
     }
 
     const scored = frontier.map((territory) => {
-      const fieldNeighbors = territory.neighbors.filter(
-        (neighborId) => fieldIds.has(neighborId)
-      ).length;
+      const fieldNeighbors =
+        territory.neighbors.filter((neighborId) =>
+          fieldIds.has(neighborId)
+        ).length;
 
-      let score = rng();
+      let score = rng() * 4;
 
       /*
-       * Prefer 2-3 field neighbors.
+       * ----------------------------------------------------
+       * FIELD CONNECTION
+       * ----------------------------------------------------
        *
-       * 1 neighbor tends to create narrow extensions.
-       * 2-3 creates rounded, natural clearings.
-       * 4+ tends to fill holes and become too geometric.
+       * We still want fields to form blobs, but we don't
+       * want them to become perfectly compact.
        */
       if (fieldNeighbors === 1) {
-        score -= 3;
+        /*
+         * One neighbor creates an irregular extension.
+         *
+         * Give this a reasonable chance rather than heavily
+         * penalizing it.
+         */
+        score += 3;
       } else if (fieldNeighbors === 2) {
-        score += 5;
+        /*
+         * Two neighbors is ideal for organic growth.
+         */
+        score += 6;
       } else if (fieldNeighbors === 3) {
+        /*
+         * Three neighbors fills the blob nicely, but is
+         * slightly less desirable than two.
+         */
         score += 4;
       } else if (fieldNeighbors >= 4) {
-        score += 1;
+        /*
+         * Four neighbors often means we're filling an
+         * interior corner and making the shape rectangular.
+         */
+        score -= 3;
       }
 
       /*
-       * Very large blobs are discouraged so that fields
-       * remain scattered around the forest.
+       * ----------------------------------------------------
+       * DETECT SQUARE / RECTANGULAR CORNERS
+       * ----------------------------------------------------
+       *
+       * If the candidate has several field neighbors that
+       * form a compact shape around it, penalize it.
+       *
+       * This helps prevent:
+       *
+       *     F F F
+       *     F . F
+       *     F F F
+       *
+       * from being filled in repeatedly.
        */
-      const nearbyFieldCount = territory.neighbors.filter(
-        (neighborId) => fieldIds.has(neighborId)
-      ).length;
+      const fieldNeighborTerritories =
+        territory.neighbors
+          .map((neighborId) =>
+            forestTerritories.find(
+              (entry) =>
+                entry.id === neighborId
+            )
+          )
+          .filter(
+            (
+              neighbor
+            ): neighbor is Territory =>
+              Boolean(neighbor) &&
+              fieldIds.has(neighbor.id)
+          );
 
-      score += nearbyFieldCount * 0.5;
+      let nearbyFieldConnections = 0;
+
+      for (
+        let index = 0;
+        index < fieldNeighborTerritories.length;
+        index += 1
+      ) {
+        for (
+          let otherIndex = index + 1;
+          otherIndex < fieldNeighborTerritories.length;
+          otherIndex += 1
+        ) {
+          const first =
+            fieldNeighborTerritories[index];
+
+          const second =
+            fieldNeighborTerritories[otherIndex];
+
+          if (
+            first.neighbors.includes(
+              second.id
+            )
+          ) {
+            nearbyFieldConnections += 1;
+          }
+        }
+      }
+
+      /*
+       * Lots of neighboring field cells that are also
+       * connected to each other means this candidate is
+       * probably filling a compact/rectangular section.
+       */
+      score -=
+        nearbyFieldConnections * 2.5;
+
+      /*
+       * ----------------------------------------------------
+       * RANDOM IRREGULARITY
+       * ----------------------------------------------------
+       *
+       * Occasionally favor a less-connected cell.
+       *
+       * This produces little bumps and peninsulas along
+       * the edge of the clearing.
+       */
+      if (rng() < 0.20) {
+        score +=
+          (4 - fieldNeighbors) * 1.5;
+      }
+
+      /*
+       * ----------------------------------------------------
+       * AVOID HUGE UNBROKEN CLEARINGS
+       * ----------------------------------------------------
+       *
+       * Look at the immediate neighborhood and slightly
+       * discourage candidates surrounded by many fields.
+       */
+      if (fieldNeighbors >= 3) {
+        score -= rng() * 3;
+      }
 
       return {
         territory,
@@ -1571,32 +1677,42 @@ function generateFieldBiomes(
       };
     });
 
-    scored.sort((a, b) => b.score - a.score);
+    scored.sort(
+      (a, b) => b.score - a.score
+    );
 
     /*
-     * Choose randomly from the strongest candidates rather
-     * than always choosing the single strongest one.
+     * Choose from a fairly large group of good candidates.
      *
-     * This keeps the clearing edges irregular.
+     * The old value of 20 becomes too deterministic on large
+     * maps because the top candidates tend to be very similar.
+     *
+     * Using roughly the top 15% keeps the growth organic.
      */
-    const candidateCount = Math.min(
-      20,
-      scored.length
+    const candidateCount = Math.max(
+      5,
+      Math.min(
+        Math.ceil(scored.length * 0.15),
+        100
+      )
     );
 
     const selected =
       scored[
-        Math.floor(rng() * candidateCount)
+        Math.floor(
+          rng() * candidateCount
+        )
       ].territory;
 
-    fieldIds.add(selected.id);
+    fieldIds.add(
+      selected.id
+    );
   }
 
   /*
-   * Convert the selected forest territories into fields.
-   *
-   * Mountains were already generated, so only forest
-   * territories could have reached this function's lists.
+   * --------------------------------------------------------
+   * APPLY FIELD BIOME
+   * --------------------------------------------------------
    */
   for (const territory of territories) {
     if (fieldIds.has(territory.id)) {
