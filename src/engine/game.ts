@@ -332,7 +332,13 @@ export const getAvailableActions = (state: GameState, territoryId: string): Avai
     return actions;
   }
 
-  if (territory.owner === currentPlayer.id && !territory.isMine) {
+  if (
+    territory.owner === currentPlayer.id &&
+    !territory.isMine &&
+    !state.board.settlements.some(
+      (settlement) => settlement.territoryId === territory.id
+    )
+  ) {
     const upgradeCost = state.economy.levelOneValue;
 
     if (currentPlayer.gold >= upgradeCost) {
@@ -545,7 +551,16 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
       (territory) => territory.id === move.targetTerritoryId
     );
 
-    if (!target || target.owner !== currentPlayer.id || target.isMine) {
+    const hasSettlement = state.board.settlements.some(
+      (settlement) => settlement.territoryId === target?.id
+    );
+
+    if (
+      !target ||
+      target.owner !== currentPlayer.id ||
+      target.isMine ||
+      hasSettlement
+    ) {
       return { success: false, reason: 'Invalid upgrade action', state };
     }
 
