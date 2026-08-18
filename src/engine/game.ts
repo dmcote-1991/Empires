@@ -1,4 +1,15 @@
-import { ActionResult, AvailableAction, Board, Economy, GameState, Move, Player, PlayerConfig, Territory } from '../types';
+import { 
+  ActionResult, 
+  AvailableAction, 
+  Board, 
+  Economy, 
+  GameState, 
+  Move, 
+  Player, 
+  PlayerConfig, 
+  Settlement, 
+  Territory 
+} from '../types';
 
 export const MINE_EFFICIENCY_TABLE = [1, 0.99, 0.98, 0.96, 0.92, 0.84, 0.36];
 
@@ -58,11 +69,13 @@ export const createInitialGameState = (options: {
     gold: 0,
     eliminated: false,
     territoryIds: [],
+    settlementId: null,
   }));
 
   const boardWithMines: Board = {
     territories,
     mines: mineTerritoryIds.map((territoryId, index) => ({ id: `mine-${index + 1}`, territoryId, efficiency: 1 })),
+    settlements: [],
     dimensions: board.dimensions,
   };
 
@@ -261,27 +274,142 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
   }
 
   if (move.type === 'claim' && move.targetTerritoryId) {
-    const target = state.board.territories.find((territory) => territory.id === move.targetTerritoryId);
+    const target = state.board.territories.find(
+      (territory) => territory.id === move.targetTerritoryId
+    );
+
     if (!target || target.owner) {
-      return { success: false, reason: 'Invalid territory claim', state };
+      return {
+        success: false,
+        reason: 'Invalid territory claim',
+        state,
+      };
     }
-    const isStartingTurn = currentPlayer.territoryIds.length === 0;
-    const validClaim = isStartingTurn ? !target.isMine : target.neighbors.some((neighborId) => currentPlayer.territoryIds.includes(neighborId));
+
+    const isStartingTurn =
+      currentPlayer.territoryIds.length === 0;
+
+    const validClaim = isStartingTurn
+      ? !target.isMine
+      : target.neighbors.some((neighborId) =>
+          currentPlayer.territoryIds.includes(neighborId)
+        );
+
     if (!validClaim) {
-      return { success: false, reason: 'Territory must be adjacent to owned territory', state };
+      return {
+        success: false,
+        reason: isStartingTurn
+          ? 'Invalid starting territory'
+          : 'Territory must be adjacent to your territory',
+        state,
+      };
     }
 
     const nextState = cloneState(state);
-    nextState.board.territories = nextState.board.territories.map((territory) => (territory.id === target.id ? { ...territory, owner: currentPlayer.id } : territory));
-    nextState.players = nextState.players.map((player) => (player.id === currentPlayer.id ? { ...player, territoryIds: [...player.territoryIds, target.id] } : player));
-    nextState.turn.currentPlayerIndex = (nextState.turn.currentPlayerIndex + 1) % nextState.players.length;
-    return { success: true, state: nextState };
+
+    /*
+    * Starting territories create settlements.
+    */
+    if (isStartingTurn) {
+      const settlementName =
+        typeof move.payload?.settlementName === 'string'
+          ? move.payload.settlementName.trim()
+          : '';
+
+      if (!settlementName) {
+        return {
+          success: false,
+          reason: 'Settlement name is required',
+          state,
+        };
+      }
+
+      const settlement: Settlement = {
+        id: `settlement-${currentPlayer.id}`,
+        territoryId: target.id,
+        owner: currentPlayer.id,
+        name: settlementName,
+        population: 100,
+      };
+
+      nextState.board.settlements.push(settlement);
+
+      nextState.players = nextState.players.map(
+        (player) =>
+          player.id === currentPlayer.id
+            ? {
+                ...player,
+                territoryIds: [
+                  ...player.territoryIds,
+                  target.id,
+                ],
+                settlementId: settlement.id,
+              }
+            : player
+      );
+    } else {
+      /*
+      * Normal territory claim.
+      */
+      nextState.players = nextState.players.map(
+        (player) =>
+          player.id === currentPlayer.id
+            ? {
+                ...player,
+                territoryIds: [
+                  ...player.territoryIds,
+                  target.id,
+                ],
+              }
+            : player
+      );
+    }
+
+    /*
+    * Give the territory to the current player.
+    */
+    nextState.board.territories =
+      nextState.board.territories.map(
+        (territory) =>
+          territory.id === target.id
+            ? {
+                ...territory,
+                owner: currentPlayer.id,
+              }
+            : territory
+      );
+
+    /*
+    * Move to the next player's turn.
+    */
+    nextState.turn.currentPlayerIndex =
+      (nextState.turn.currentPlayerIndex + 1) %
+      nextState.players.length;
+
+    return {
+      success: true,
+      state: nextState,
+    };
   }
 
   if (move.type === 'buy' && move.targetTerritoryId) {
     const target = state.board.territories.find((territory) => territory.id === move.targetTerritoryId);
-    if (!target || !target.owner || target.owner === currentPlayer.id || target.isMine) {
-      return { success: false, reason: 'Invalid buy action', state };
+    const hasSettlement = state.board.settlements.some(
+      (settlement) =>
+        settlement.territoryId === target?.id
+    );
+    if (
+      !target ||
+      !target.owner ||
+      target.owner === currentPlayer.id ||
+      target.isMine ||
+      hasSettlement
+    ) {
+      return {
+        success: false,
+        reason: 'Invalid buy action',
+        state,
+      };
     }
     const isAdjacent = target.neighbors.some((neighborId) => currentPlayer.territoryIds.includes(neighborId));
     if (!isAdjacent) {
@@ -401,8 +529,22 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
       (territory) => territory.id === move.targetTerritoryId
     );
 
-    if (!target || target.owner !== currentPlayer.id || target.isMine) {
-      return { success: false, reason: 'Invalid sell action', state };
+    const hasSettlement = state.board.settlements.some(
+      (settlement) =>
+        settlement.territoryId === target?.id
+    );
+
+    if (
+      !target ||
+      target.owner !== currentPlayer.id ||
+      target.isMine ||
+      hasSettlement
+    ) {
+      return {
+        success: false,
+        reason: 'Invalid sell action',
+        state,
+      };
     }
 
     const buyerPlayerId = move.payload?.buyerPlayerId;
@@ -497,18 +639,28 @@ function cloneState(state: GameState): GameState {
   return {
     ...state,
     turn: { ...state.turn },
-    economy: { ...state.economy},
-    players: state.players.map((player) => ({ 
-      ...player, 
+    economy: { ...state.economy },
+
+    players: state.players.map((player) => ({
+      ...player,
       territoryIds: [...player.territoryIds],
     })),
+
     board: {
       ...state.board,
-      territories: state.board.territories.map((territory) => ({ 
+
+      territories: state.board.territories.map((territory) => ({
         ...territory,
         neighbors: [...territory.neighbors],
       })),
-      mines: state.board.mines.map((mine) => ({ ...mine })),
+
+      mines: state.board.mines.map((mine) => ({
+        ...mine,
+      })),
+
+      settlements: state.board.settlements.map((settlement) => ({
+        ...settlement,
+      })),
     },
   };
 }
@@ -654,6 +806,7 @@ function generateBoard(territoryCount: number, rng: Rng): Board {
   return {
     territories,
     mines: [],
+    settlements: [],
     dimensions: { rows, cols },
   };
 }

@@ -12,6 +12,7 @@ export interface Player {
   gold: number;
   eliminated: boolean;
   territoryIds: string[];
+  settlementId: string | null;
 }
 
 export interface Territory {
@@ -29,9 +30,18 @@ export interface Mine {
   efficiency: number;
 }
 
+export interface Settlement {
+  id: string;
+  territoryId: string;
+  owner: string;
+  name: string;
+  population: number;
+}
+
 export interface Board {
   territories: Territory[];
   mines: Mine[];
+  settlements: Settlement[];
   dimensions: {
     rows: number;
     cols: number;

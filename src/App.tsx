@@ -19,6 +19,7 @@ function App() {
   const [territoryCount, setTerritoryCount] = useState(200);
   const [mineCount, setMineCount] = useState(4);
   const [selectedTerritoryId, setSelectedTerritoryId] = useState<string | null>(null);
+  const [settlementName, setSettlementName] = useState('');
   const [pendingSale, setPendingSale] = useState<{
   territoryId: string;
   buyerPlayerId: string;
@@ -35,13 +36,6 @@ function App() {
   }, [playerCount, playerConfigs]);
 
   const summary = useMemo(() => (gameState ? getGameSummary(gameState) : null), [gameState]);
-
-  useEffect(() => {
-    const saved = loadGameState();
-    if (saved) {
-      setGameState(saved);
-    }
-  }, []);
 
   useEffect(() => {
     if (gameState) {
@@ -100,12 +94,14 @@ function App() {
 
   const handleSelectTerritory = (territoryId: string) => {
     setSelectedTerritoryId(territoryId);
+    setSettlementName('');
   };
 
   const handleAction = (
     type: 'claim' | 'buy' | 'sell' | 'upgrade' | 'produce' | 'skip',
     territoryId: string,
-    buyerPlayerId?: string
+    buyerPlayerId?: string,
+    payload?: Record<string, unknown>
   ) => {
     if (!gameState) {
       return;
@@ -153,9 +149,12 @@ function App() {
     const result = executeGameAction(gameState, {
       type,
       targetTerritoryId: territoryId,
-      payload: buyerPlayerId
-        ? { buyerPlayerId }
-        : undefined,
+      payload: {
+        ...(buyerPlayerId
+          ? { buyerPlayerId }
+          : {}),
+        ...(payload ?? {}),
+      },
     });
 
     if (result.success) {
@@ -256,6 +255,20 @@ function App() {
                 : []
             }
             onSelectTerritory={handleSelectTerritory}
+            settlementName={settlementName}
+            setSettlementName={setSettlementName}
+            onEstablishSettlement={(territoryId, name) => {
+              handleAction(
+                'claim',
+                territoryId,
+                undefined,
+                {
+                  settlementName: name,
+                }
+              );
+
+              setSettlementName('');
+            }}
             onAction={handleAction}
             getSellBuyers={getSellBuyers}
           />

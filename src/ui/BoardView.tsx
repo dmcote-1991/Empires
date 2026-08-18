@@ -6,17 +6,29 @@ interface BoardViewProps {
   selectedTerritoryId: string | null;
   availableActions: ReturnType<typeof getAvailableActions>;
   onSelectTerritory?: (territoryId: string) => void;
+
+  onEstablishSettlement: (
+    territoryId: string,
+    settlementName: string
+  ) => void;
+
   onAction: (
     type: 'claim' | 'buy' | 'sell' | 'upgrade' | 'produce' | 'skip',
     territoryId: string,
     buyerPlayerId?: string
   ) => void;
+
   getSellBuyers: (territoryId: string) => {
     id: string;
     name: string;
     color: string;
     gold: number;
   }[];
+
+  settlementName: string;
+  setSettlementName: React.Dispatch<
+    React.SetStateAction<string>
+  >;
 }
 
 const colorMap: Record<string, string> = {
@@ -33,8 +45,11 @@ export function BoardView({
   selectedTerritoryId,
   availableActions,
   onSelectTerritory,
+  onEstablishSettlement,
   onAction,
   getSellBuyers,
+  settlementName,
+  setSettlementName,
 }: BoardViewProps) {
   const currentPlayerId = gameState.turn.order[gameState.turn.currentPlayerIndex];
 
@@ -42,6 +57,12 @@ export function BoardView({
     const owner = gameState.players.find(
       (player) => player.id === territory.owner
     );
+
+    const settlement =
+      gameState.board.settlements.find(
+        (settlement) =>
+          settlement.territoryId === territory.id
+      );
 
     const territoryIndex = Number(territory.id.slice(2)) - 1;
 
@@ -233,68 +254,113 @@ export function BoardView({
             <span className="biome-border biome-border-right" />
           )}
 
-          {territory.isMine
-            ? '⛏️'
-            : territory.owner
-              ? territory.level
-              : ''}
+          {settlement
+            ? '🏘️'
+            : territory.isMine
+              ? '⛏️'
+              : territory.owner
+                ? territory.level
+                : ''}
         </button>
+
+        {settlement && (
+          <div className="settlement-tooltip">
+            <strong>{settlement.name}</strong>
+            <span>Population: {settlement.population}</span>
+          </div>
+        )}
 
         {selectedTerritoryId === territory.id && (
           <div className="action-menu">
-            <div className="action-menu-title">
-              Actions
-            </div>
-
-            {availableActions.map((action) =>
-              action.type === 'sell' ? (
-                <div
-                  key={action.type}
-                  className="action-group"
-                >
-                  {getSellBuyers(territory.id)
-                    .filter((player) => {
-                      const price =
-                        gameState.economy.levelOneValue *
-                        territory.level;
-
-                      return player.gold >= price;
-                    })
-                    .map((player) => {
-                      const price =
-                        gameState.economy.levelOneValue *
-                        territory.level;
-
-                      return (
-                        <button
-                          key={`${action.type}-${player.id}`}
-                          onClick={() =>
-                            onAction(
-                              'sell',
-                              territory.id,
-                              player.id
-                            )
-                          }
-                        >
-                          Sell to {player.name} (Price: {price}{' '}
-                          Gold)
-                        </button>
-                      );
-                    })}
+            {gameState.players.find(
+              (player) => player.id === currentPlayerId
+            )?.territoryIds.length === 0 ? (
+              <>
+                <div className="action-menu-title">
+                  Establish Settlement
                 </div>
-              ) : (
+
+                <input
+                  type="text"
+                  placeholder="Settlement name"
+                  value={settlementName}
+                  onChange={(event) =>
+                    setSettlementName(event.target.value)
+                  }
+                  onClick={(event) =>
+                    event.stopPropagation()
+                  }
+                />
+
                 <button
-                  key={action.type}
+                  disabled={!settlementName.trim()}
                   onClick={() =>
-                    onAction(
-                      action.type,
-                      territory.id
+                    onEstablishSettlement(
+                      territory.id,
+                      settlementName
                     )
                   }
                 >
-                  {action.label}
+                  Establish Settlement
                 </button>
-              )
+              </>
+            ) : (
+              <>
+                <div className="action-menu-title">
+                  Actions
+                </div>
+
+                {availableActions.map((action) =>
+                  action.type === 'sell' ? (
+                    <div
+                      key={action.type}
+                      className="action-group"
+                    >
+                      {getSellBuyers(territory.id)
+                        .filter((player) => {
+                          const price =
+                            gameState.economy.levelOneValue *
+                            territory.level;
+
+                          return player.gold >= price;
+                        })
+                        .map((player) => {
+                          const price =
+                            gameState.economy.levelOneValue *
+                            territory.level;
+
+                          return (
+                            <button
+                              key={`${action.type}-${player.id}`}
+                              onClick={() =>
+                                onAction(
+                                  'sell',
+                                  territory.id,
+                                  player.id
+                                )
+                              }
+                            >
+                              Sell to {player.name} (Price: {price}{' '}
+                              Gold)
+                            </button>
+                          );
+                        })}
+                    </div>
+                  ) : (
+                    <button
+                      key={action.type}
+                      onClick={() =>
+                        onAction(
+                          action.type,
+                          territory.id
+                        )
+                      }
+                    >
+                      {action.label}
+                    </button>
+                  )
+                )}
+              </>
             )}
           </div>
         )}

@@ -22,23 +22,53 @@ export function Sidebar({ gameState, onNewGame, onSaveGame, onLoadGame }: Sideba
         <button onClick={onNewGame}>New Game</button>
       </div>
       <div className="player-list">
-        {gameState.players.map((player) => (
-          <div key={player.id} className="player-card">
-            <strong>{player.name}</strong>
-            <div>Color: {player.color}</div>
-            <div>Gold: {player.gold}</div>
-            <div>Territories: {player.territoryIds.length}</div>
-            <div>
-              Mines: {' '}
-              {
-                gameState.board.territories.filter(
-                  (territory) => 
-                    territory.owner === player.id && territory.isMine
-                ).length
-              }
+        {gameState.players.map((player) => {
+          const settlement =
+            gameState.board.settlements.find(
+              (settlement) =>
+                settlement.id === player.settlementId
+            );
+
+          return (
+            <div
+              key={player.id}
+              className="player-card"
+            >
+              <strong>{player.name}</strong>
+
+              <div>Color: {player.color}</div>
+
+              <div>Gold: {player.gold}</div>
+
+              <div>
+                Territories: {player.territoryIds.length}
+              </div>
+
+              {settlement && (
+                <>
+                  <div>
+                    Settlement: {settlement.name}
+                  </div>
+
+                  <div>
+                    Population: {settlement.population}
+                  </div>
+                </>
+              )}
+
+              <div>
+                Mines:{' '}
+                {
+                  gameState.board.territories.filter(
+                    (territory) =>
+                      territory.owner === player.id &&
+                      territory.isMine
+                  ).length
+                }
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </aside>
   );
