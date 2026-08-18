@@ -120,7 +120,7 @@ export const getGameSummary = (state: GameState) => ({
 
 export const getValidStartingTerritories = (board: Board): Territory[] => {
   return board.territories.filter((territory) => {
-    if (territory.isMine) {
+    if (territory.isMine || territory.biome === 'river') {
       return false;
     }
     const hasMineNeighbor = territory.neighbors.some((neighborId) => {
@@ -220,6 +220,10 @@ export const getAvailableActions = (state: GameState, territoryId: string): Avai
 
   const actions: AvailableAction[] = [];
   if (!territory.owner) {
+    // Rivers can never be owned
+    if (territory.biome === 'river') {
+      return [];
+    }
     const isStartingTurn = currentPlayer.territoryIds.length === 0;
     const canClaim = isStartingTurn ? !territory.isMine : territory.neighbors.some((neighborId) => currentPlayer.territoryIds.includes(neighborId));
     if (canClaim) {
@@ -278,7 +282,7 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
       (territory) => territory.id === move.targetTerritoryId
     );
 
-    if (!target || target.owner) {
+    if (!target || target.owner || target.biome === 'river') {
       return {
         success: false,
         reason: 'Invalid territory claim',
@@ -403,6 +407,7 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
       !target.owner ||
       target.owner === currentPlayer.id ||
       target.isMine ||
+      target.biome === 'river' ||
       hasSettlement
     ) {
       return {
@@ -538,6 +543,7 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
       !target ||
       target.owner !== currentPlayer.id ||
       target.isMine ||
+      target.biome === 'river' ||
       hasSettlement
     ) {
       return {
