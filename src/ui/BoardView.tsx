@@ -13,7 +13,7 @@ interface BoardViewProps {
   ) => void;
 
   onAction: (
-    type: 'claim' | 'buy' | 'sell' | 'upgrade' | 'produce' | 'skip',
+    type: 'claim' | 'endClaiming' | 'buy' | 'sell' | 'upgrade' | 'produce' | 'skip',
     territoryId: string,
     buyerPlayerId?: string
   ) => void;
@@ -52,6 +52,12 @@ export function BoardView({
   setSettlementName,
 }: BoardViewProps) {
   const currentPlayerId = gameState.turn.order[gameState.turn.currentPlayerIndex];
+
+  const isClaiming =
+    gameState.turn.phase === 'claiming';
+
+  const movementRemaining =
+    gameState.turn.movementRemaining;
 
   const currentPlayer = gameState.players.find(
     (player) => player.id === currentPlayerId
@@ -324,8 +330,25 @@ export function BoardView({
             ) : (
               <>
                 <div className="action-menu-title">
-                  Actions
+                  {isClaiming
+                    ? 'Claiming Territory'
+                    : 'Actions'}
                 </div>
+
+                {isClaiming && (
+                  <div className="movement-display">
+                    Movement: {movementRemaining} / 4
+                  </div>
+                )}
+
+                {isClaiming && (
+                  <div className="movement-rules">
+                    <div>🌾 Field: 1</div>
+                    <div>🌲 Forest: 2</div>
+                    <div>⛰️ Mountain: 4</div>
+                    <div>🌊 River: impassable</div>
+                  </div>
+                )}
 
                 {availableActions.map((action) =>
                   action.type === 'sell' ? (

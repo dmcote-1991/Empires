@@ -13,6 +13,21 @@ import {
 
 export const MINE_EFFICIENCY_TABLE = [1, 0.99, 0.98, 0.96, 0.92, 0.84, 0.36];
 
+export const MAX_MOVEMENT = 4;
+
+export const getBiomeMovementCost = (biome: Territory['biome']): number => {
+  switch (biome) {
+    case 'field':
+      return 1;
+    case 'forest':
+      return 2;
+    case 'mountain':
+      return 4;
+    case 'river':
+      return Infinity;
+  }
+};
+
 type Rng = () => number;
 
 export const createInitialGameState = (options: {
@@ -97,6 +112,8 @@ export const createInitialGameState = (options: {
       currentPlayerIndex: 0,
       round: 1,
       order: players.map((player) => player.id),
+      phase: 'action',
+      movementRemaining: 4,
     },
     settings: {
       territoryCount: options.territoryCount,
@@ -299,35 +316,124 @@ function getEligibleBuyers(
   );
 }
 
-export const getAvailableActions = (state: GameState, territoryId: string): AvailableAction[] => {
-  const currentPlayerId = state.turn.order[state.turn.currentPlayerIndex];
-  const currentPlayer = state.players.find((player) => player.id === currentPlayerId);
-  const territory = state.board.territories.find((entry) => entry.id === territoryId);
+export const getAvailableActions = (
+  state: GameState,
+  territoryId: string
+): AvailableAction[] => {
+  const currentPlayerId =
+    state.turn.order[state.turn.currentPlayerIndex];
+
+  const currentPlayer = state.players.find(
+    (player) => player.id === currentPlayerId
+  );
+
+  const territory = state.board.territories.find(
+    (entry) => entry.id === territoryId
+  );
+
   if (!currentPlayer || !territory) {
     return [];
   }
 
-  const actions: AvailableAction[] = [];
-  if (!territory.owner) {
-    // Rivers can never be owned
+  /*
+   * --------------------------------------------------------
+   * CLAIMING PHASE
+   * --------------------------------------------------------
+   *
+   * Once the player has chosen Claim, claiming is the only
+   * thing they can do until they finish or end claiming.
+   */
+  if (state.turn.phase === 'claiming') {
+    const actions: AvailableAction[] = [
+      {
+        type: 'endClaiming',
+        label: 'End claiming',
+      },
+    ];
+
+    if (territory.owner) {
+      return actions;
+    }
+
     if (territory.biome === 'river') {
-      return [];
+      return actions;
     }
-    const isStartingTurn = currentPlayer.territoryIds.length === 0;
-    const canClaim = isStartingTurn ? !territory.isMine : territory.neighbors.some((neighborId) => currentPlayer.territoryIds.includes(neighborId));
-    if (canClaim) {
-      actions.push({ type: 'claim', label: 'Claim territory' });
+
+    const isAdjacent =
+      territory.neighbors.some((neighborId) =>
+        currentPlayer.territoryIds.includes(neighborId)
+      );
+
+    if (!isAdjacent) {
+      return actions;
     }
+
+    const movementCost =
+      getBiomeMovementCost(territory.biome);
+
+    if (
+      movementCost >
+      state.turn.movementRemaining
+    ) {
+      return actions;
+    }
+
+    actions.unshift({
+      type: 'claim',
+      label: `Claim territory (${movementCost} movement)`,
+    });
+
     return actions;
   }
 
-  if (territory.owner && territory.owner !== currentPlayer.id && !territory.isMine) {
-    const buyCost = state.economy.levelOneValue * territory.level;
+  /*
+   * --------------------------------------------------------
+   * NORMAL ACTION PHASE
+   * --------------------------------------------------------
+   */
 
-    if (currentPlayer.gold >= buyCost && buyCost > 0) {
+  const actions: AvailableAction[] = [];
+
+  if (!territory.owner) {
+    // Rivers can never be owned.
+    if (territory.biome === 'river') {
+      return [];
+    }
+
+    const isStartingTurn =
+      currentPlayer.territoryIds.length === 0;
+
+    const canClaim = isStartingTurn
+      ? !territory.isMine
+      : territory.neighbors.some((neighborId) =>
+          currentPlayer.territoryIds.includes(neighborId)
+        );
+
+    if (canClaim) {
+      actions.push({
+        type: 'claim',
+        label: 'Begin claiming',
+      });
+    }
+
+    return actions;
+  }
+
+  if (
+    territory.owner &&
+    territory.owner !== currentPlayer.id &&
+    !territory.isMine
+  ) {
+    const buyCost =
+      state.economy.levelOneValue * territory.level;
+
+    if (
+      currentPlayer.gold >= buyCost &&
+      buyCost > 0
+    ) {
       actions.push({
         type: 'buy',
-        label: `Buy territory (Asking Price: ${buyCost} Gold)`
+        label: `Buy territory (Asking Price: ${buyCost} Gold)`,
       });
     }
 
@@ -338,30 +444,57 @@ export const getAvailableActions = (state: GameState, territoryId: string): Avai
     territory.owner === currentPlayer.id &&
     !territory.isMine &&
     !state.board.settlements.some(
-      (settlement) => settlement.territoryId === territory.id
+      (settlement) =>
+        settlement.territoryId === territory.id
     )
   ) {
-    const upgradeCost = state.economy.levelOneValue;
+    const upgradeCost =
+      state.economy.levelOneValue;
 
     if (currentPlayer.gold >= upgradeCost) {
       actions.push({
         type: 'upgrade',
-        label: `Upgrade territory (Cost: ${upgradeCost} Gold)`
+        label: `Upgrade territory (Cost: ${upgradeCost} Gold)`,
       });
     }
 
-    const adjacentOwned = state.board.territories.filter((entry) => entry.owner === currentPlayer.id && entry.id !== territory.id && territory.neighbors.includes(entry.id));
+    const adjacentOwned =
+      state.board.territories.filter(
+        (entry) =>
+          entry.owner === currentPlayer.id &&
+          entry.id !== territory.id &&
+          territory.neighbors.includes(entry.id)
+      );
+
     if (adjacentOwned.length > 0) {
-      actions.push({ type: 'sell', label: `Sell territory (Price: ${state.economy.levelOneValue * territory.level} Gold)` });
+      actions.push({
+        type: 'sell',
+        label: `Sell territory (Price: ${
+          state.economy.levelOneValue * territory.level
+        } Gold)`,
+      });
     }
+
     return actions;
   }
 
-  if (territory.owner === currentPlayer.id && territory.isMine) {
-    actions.push({ type: 'produce', label: `Produce from mine (Production: ${getMineProduction(state, currentPlayerId)})` });
+  if (
+    territory.owner === currentPlayer.id &&
+    territory.isMine
+  ) {
+    actions.push({
+      type: 'produce',
+      label: `Produce from mine (Production: ${
+        getMineProduction(state, currentPlayerId)
+      })`,
+    });
   }
 
-  actions.push({ type: 'skip', label: 'Skip turn' });
+  actions.push({
+    type: 'skip',
+    label: 'Skip turn',
+  });
+
   return actions;
 };
 
@@ -374,10 +507,15 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
 
   if (move.type === 'claim' && move.targetTerritoryId) {
     const target = state.board.territories.find(
-      (territory) => territory.id === move.targetTerritoryId
+      (territory) =>
+        territory.id === move.targetTerritoryId
     );
 
-    if (!target || target.owner || target.biome === 'river') {
+    if (
+      !target ||
+      target.owner ||
+      target.biome === 'river'
+    ) {
       return {
         success: false,
         reason: 'Invalid territory claim',
@@ -388,18 +526,99 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
     const isStartingTurn =
       currentPlayer.territoryIds.length === 0;
 
-    const validClaim = isStartingTurn
-      ? !target.isMine && canPlaceSettlement(state.board, target)
-      : target.neighbors.some((neighborId) =>
-          currentPlayer.territoryIds.includes(neighborId)
-        );
+    /*
+    * --------------------------------------------------------
+    * START CLAIMING
+    * --------------------------------------------------------
+    *
+    * The first Claim click changes the turn into claiming
+    * mode. It does NOT claim a territory yet.
+    */
+    if (state.turn.phase === 'action') {
+      const canStartClaiming = isStartingTurn
+        ? !target.isMine &&
+          canPlaceSettlement(state.board, target)
+        : target.neighbors.some((neighborId) =>
+            currentPlayer.territoryIds.includes(
+              neighborId
+            )
+          );
 
-    if (!validClaim) {
+      if (!canStartClaiming) {
+        return {
+          success: false,
+          reason: isStartingTurn
+            ? 'Settlement must be placed on forest or field with no mountain or river touching it'
+            : 'Territory must be adjacent to your territory',
+          state,
+        };
+      }
+
+      const nextState = cloneState(state);
+
+      nextState.turn.phase = 'claiming';
+      nextState.turn.movementRemaining =
+        MAX_MOVEMENT;
+
+      return {
+        success: true,
+        state: nextState,
+      };
+    }
+
+    /*
+    * --------------------------------------------------------
+    * ALREADY CLAIMING
+    * --------------------------------------------------------
+    */
+
+    if (state.turn.phase !== 'claiming') {
       return {
         success: false,
-        reason: isStartingTurn
-          ? 'Settlement must be placed on forest or field with no mountain or river touching it'
-          : 'Territory must be adjacent to your territory',
+        reason: 'Invalid claiming phase',
+        state,
+      };
+    }
+
+    if (isStartingTurn) {
+      if (
+        target.isMine ||
+        !canPlaceSettlement(state.board, target)
+      ) {
+        return {
+          success: false,
+          reason:
+            'Invalid settlement location',
+          state,
+        };
+      }
+    } else {
+      const validClaim = target.neighbors.some(
+        (neighborId) =>
+          currentPlayer.territoryIds.includes(neighborId)
+      );
+
+      if (!validClaim) {
+        return {
+          success: false,
+          reason:
+            'Territory must be adjacent to your territory',
+          state,
+        };
+      }
+    }
+
+    const movementCost =
+      getBiomeMovementCost(target.biome);
+
+    if (
+      movementCost >
+      state.turn.movementRemaining
+    ) {
+      return {
+        success: false,
+        reason:
+          'Not enough movement to claim this territory',
         state,
       };
     }
@@ -407,8 +626,11 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
     const nextState = cloneState(state);
 
     /*
-    * Starting territories create settlements.
+    * --------------------------------------------------------
+    * STARTING SETTLEMENT
+    * --------------------------------------------------------
     */
+
     if (isStartingTurn) {
       const settlementName =
         typeof move.payload?.settlementName === 'string'
@@ -431,10 +653,12 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
         population: 100,
       };
 
-      nextState.board.settlements.push(settlement);
+      nextState.board.settlements.push(
+        settlement
+      );
 
-      nextState.players = nextState.players.map(
-        (player) =>
+      nextState.players =
+        nextState.players.map((player) =>
           player.id === currentPlayer.id
             ? {
                 ...player,
@@ -445,13 +669,13 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
                 settlementId: settlement.id,
               }
             : player
-      );
+        );
     } else {
       /*
       * Normal territory claim.
       */
-      nextState.players = nextState.players.map(
-        (player) =>
+      nextState.players =
+        nextState.players.map((player) =>
           player.id === currentPlayer.id
             ? {
                 ...player,
@@ -461,7 +685,7 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
                 ],
               }
             : player
-      );
+        );
     }
 
     /*
@@ -479,12 +703,27 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
       );
 
     /*
-    * Move to the next player's turn.
+    * Spend movement.
     */
-    nextState.turn.currentPlayerIndex =
-      (nextState.turn.currentPlayerIndex + 1) %
-      nextState.players.length;
+    nextState.turn.movementRemaining -=
+      movementCost;
 
+    /*
+    * If no movement remains, automatically end
+    * the claiming phase and advance the turn.
+    */
+    if (
+      nextState.turn.movementRemaining <= 0
+    ) {
+      return {
+        success: true,
+        state: advanceTurn(nextState),
+      };
+    }
+
+    /*
+    * Otherwise stay in claiming mode.
+    */
     return {
       success: true,
       state: nextState,
@@ -730,10 +969,26 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
     return { success: true, state: nextState };
   }
 
+  if (move.type === 'endClaiming') {
+    if (state.turn.phase !== 'claiming') {
+      return {
+        success: false,
+        reason: 'Not currently claiming',
+        state,
+      };
+    }
+
+    return {
+      success: true,
+      state: advanceTurn(state),
+    };
+  }
+
   if (move.type === 'skip') {
-    const nextState = cloneState(state);
-    nextState.turn.currentPlayerIndex = (nextState.turn.currentPlayerIndex + 1) % nextState.players.length;
-    return { success: true, state: nextState };
+    return {
+      success: true,
+      state: advanceTurn(state),
+    };
   }
 
   return { success: true, state: advanceTurn(state) };
@@ -741,7 +996,14 @@ export const executeGameAction = (state: GameState, move: Move): ActionResult =>
 
 function advanceTurn(state: GameState): GameState {
   const nextState = cloneState(state);
-  nextState.turn.currentPlayerIndex = (nextState.turn.currentPlayerIndex + 1) % nextState.players.length;
+
+  nextState.turn.currentPlayerIndex =
+    (nextState.turn.currentPlayerIndex + 1) %
+    nextState.players.length;
+
+  nextState.turn.phase = 'action';
+  nextState.turn.movementRemaining = MAX_MOVEMENT;
+
   return nextState;
 }
 

@@ -203,6 +203,21 @@ background: #2e4736;
   gap: 6px;
 }
 
+.movement-display {
+  font-weight: 700;
+  padding: 6px 0;
+  border-bottom: 1px solid #374151;
+}
+
+.movement-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0;
+  font-size: 0.8rem;
+  color: #d1d5db;
+}
+
 /* --------------------------------
    Biome boundaries
    -------------------------------- */

@@ -101,12 +101,18 @@ function App() {
   };
 
   const handleSelectTerritory = (territoryId: string) => {
+    if (
+      gameState?.turn.phase === 'claiming'
+    ) {
+      setSelectedTerritoryId(territoryId);
+      return;
+    }
     setSelectedTerritoryId(territoryId);
     setSettlementName('');
   };
 
   const handleAction = (
-    type: 'claim' | 'buy' | 'sell' | 'upgrade' | 'produce' | 'skip',
+    type: 'claim' | 'endClaiming' | 'buy' | 'sell' | 'upgrade' | 'produce' | 'skip',
     territoryId: string,
     buyerPlayerId?: string,
     payload?: Record<string, unknown>
@@ -167,6 +173,15 @@ function App() {
 
     if (result.success) {
       setGameState(result.state);
+
+      if (type === 'claim') {
+        /*
+        * Stay selected while claiming so the player can
+        * immediately continue expanding.
+        */
+        return;
+      }
+
       setSelectedTerritoryId(null);
     }
   };
