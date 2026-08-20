@@ -5,6 +5,9 @@ import {
 
 type Rng = () => number;
 
+// ============================================================
+// #region BOARD GENERATION
+// ============================================================
 
 export function generateBoard(territoryCount: number, rng: Rng): Board {
   const temporaryCellCount = territoryCount * 2;
@@ -230,6 +233,46 @@ function getCellNeighbors(
 
   return neighbors;
 }
+
+function wouldCreateLongArm(
+  index: number,
+  remaining: Set<number>,
+  rows: number,
+  cols: number
+): boolean {
+  const testSet = new Set(remaining);
+  testSet.add(index);
+
+  let current = index;
+  let previous = -1;
+  let length = 0;
+
+  while (length < 4) {
+    const neighbors = getCellNeighbors(
+      current,
+      testSet,
+      rows,
+      cols
+    ).filter(
+      (neighbor) => neighbor !== previous
+    );
+
+    // We've reached the body of the map.
+    if (neighbors.length !== 1) {
+      break;
+    }
+
+    previous = current;
+    current = neighbors[0];
+    length += 1;
+  }
+
+  return length >= 3;
+}
+
+// ============================================================
+// #region BOARD CLEANUP
+// ============================================================
 
 export function fillEnclosedBoardHoles(
   territories: Territory[],
@@ -477,41 +520,9 @@ export function fillEnclosedBoardHoles(
   }
 }
 
-function wouldCreateLongArm(
-  index: number,
-  remaining: Set<number>,
-  rows: number,
-  cols: number
-): boolean {
-  const testSet = new Set(remaining);
-  testSet.add(index);
-
-  let current = index;
-  let previous = -1;
-  let length = 0;
-
-  while (length < 4) {
-    const neighbors = getCellNeighbors(
-      current,
-      testSet,
-      rows,
-      cols
-    ).filter(
-      (neighbor) => neighbor !== previous
-    );
-
-    // We've reached the body of the map.
-    if (neighbors.length !== 1) {
-      break;
-    }
-
-    previous = current;
-    current = neighbors[0];
-    length += 1;
-  }
-
-  return length >= 3;
-}
+// ============================================================
+// #region MOUNTAIN BIOMES / MINES
+// ============================================================
 
 const MAX_MOUNTAIN_PERCENT = 0.30;
 const MIN_MOUNTAIN_PERCENT = 0.20;
@@ -660,6 +671,249 @@ export function generateMountainBiomes(
     mineCount
   );
 }
+
+function countMountainNeighbors(
+  territory: Territory,
+  territories: Territory[]
+): number {
+  return territory.neighbors.filter((neighborId) => {
+    const neighbor = territories.find(
+      (entry) => entry.id === neighborId
+    );
+
+    return neighbor?.biome === 'mountain';
+  }).length;
+}
+
+function hasEightMountainNeighbors(
+  territory: Territory,
+  territories: Territory[],
+  dimensions: { rows: number; cols: number }
+): boolean {
+  const index =
+    Number(territory.id.slice(2)) - 1;
+
+  const row =
+    Math.floor(index / dimensions.cols);
+
+  const col =
+    index % dimensions.cols;
+
+  // A mine needs all 8 surrounding cells,
+  // so edge territories can never be mines.
+  if (
+    row === 0 ||
+    row === dimensions.rows - 1 ||
+    col === 0 ||
+    col === dimensions.cols - 1
+  ) {
+    return false;
+  }
+
+  for (let rowOffset = -1; rowOffset <= 1; rowOffset += 1) {
+    for (let colOffset = -1; colOffset <= 1; colOffset += 1) {
+      if (
+        rowOffset === 0 &&
+        colOffset === 0
+      ) {
+        continue;
+      }
+
+      const neighborRow =
+        row + rowOffset;
+
+      const neighborCol =
+        col + colOffset;
+
+      const neighborIndex =
+        neighborRow * dimensions.cols +
+        neighborCol;
+
+      const neighbor =
+        territories.find(
+          (entry) =>
+            Number(entry.id.slice(2)) - 1 ===
+            neighborIndex
+        );
+
+      if (
+        !neighbor ||
+        neighbor.biome !== 'mountain'
+      ) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+function hasPotentialMineNeighbors(
+  territory: Territory,
+  territories: Territory[],
+  dimensions: { rows: number; cols: number }
+): boolean {
+  const index =
+    Number(territory.id.slice(2)) - 1;
+
+  const row =
+    Math.floor(index / dimensions.cols);
+
+  const col =
+    index % dimensions.cols;
+
+  if (
+    row === 0 ||
+    row === dimensions.rows - 1 ||
+    col === 0 ||
+    col === dimensions.cols - 1
+  ) {
+    return false;
+  }
+
+  let mountainNeighbors = 0;
+
+  for (let rowOffset = -1; rowOffset <= 1; rowOffset += 1) {
+    for (let colOffset = -1; colOffset <= 1; colOffset += 1) {
+      if (
+        rowOffset === 0 &&
+        colOffset === 0
+      ) {
+        continue;
+      }
+
+      const neighborRow =
+        row + rowOffset;
+
+      const neighborCol =
+        col + colOffset;
+
+      const neighborIndex =
+        neighborRow * dimensions.cols +
+        neighborCol;
+
+      const neighbor =
+        territories.find(
+          (entry) =>
+            Number(entry.id.slice(2)) - 1 ===
+            neighborIndex
+        );
+
+      if (
+        neighbor?.biome === 'mountain'
+      ) {
+        mountainNeighbors += 1;
+      }
+    }
+  }
+
+  return mountainNeighbors >= 7;
+}
+
+function expandMountainsForMines(
+  territories: Territory[],
+  dimensions: { rows: number; cols: number },
+  mineCount: number
+): void {
+  while (
+    territories.filter(
+      (territory) =>
+        territory.biome === 'mountain' &&
+        hasEightMountainNeighbors(
+          territory,
+          territories,
+          dimensions
+        )
+    ).length < mineCount
+  ) {
+    const candidate = territories
+      .filter(
+        (territory) =>
+          territory.biome === 'field' &&
+          hasPotentialMineNeighbors(
+            territory,
+            territories,
+            dimensions
+          )
+      )
+      .sort((a, b) => {
+        const aMountainNeighbors =
+          countMountainNeighbors(
+            a,
+            territories
+          );
+
+        const bMountainNeighbors =
+          countMountainNeighbors(
+            b,
+            territories
+          );
+
+        return (
+          bMountainNeighbors -
+          aMountainNeighbors
+        );
+      })[0];
+
+    if (!candidate) {
+      break;
+    }
+
+    candidate.biome = 'mountain';
+  }
+}
+
+export function placeMines(
+  territories: Territory[],
+  dimensions: { rows: number; cols: number },
+  mineCount: number,
+  rng: Rng
+): string[] {
+  const mineTerritoryIds: string[] = [];
+
+  const candidateTerritories = territories.filter(
+    (territory) =>
+      territory.biome === 'mountain' &&
+      hasEightMountainNeighbors(
+        territory,
+        territories,
+        dimensions
+      )
+  );
+
+  // Shuffle candidates.
+  for (
+    let index = candidateTerritories.length - 1;
+    index > 0;
+    index -= 1
+  ) {
+    const randomIndex = Math.floor(
+      rng() * (index + 1)
+    );
+
+    [
+      candidateTerritories[index],
+      candidateTerritories[randomIndex],
+    ] = [
+      candidateTerritories[randomIndex],
+      candidateTerritories[index],
+    ];
+  }
+
+  for (const territory of candidateTerritories) {
+    if (mineTerritoryIds.length >= mineCount) {
+      break;
+    }
+
+    mineTerritoryIds.push(territory.id);
+  }
+
+  return mineTerritoryIds;
+}
+
+// ============================================================
+// #region FIELD BIOMES
+// ============================================================
 
 const FIELD_PERCENT_OF_FOREST = 0.15;
 
@@ -953,6 +1207,10 @@ export function generateFieldBiomes(
     }
   }
 }
+
+// ============================================================
+// #region RIVER BIOMES
+// ============================================================
 
 const MAX_RIVER_SOURCES = 10;
 
@@ -2140,6 +2398,10 @@ function getDirection(
   return 'west';
 }
 
+// ============================================================
+// #region GENERAL UTILITY
+// ============================================================
+
 function shuffleArray<T>(
   array: T[],
   rng: Rng
@@ -2163,243 +2425,4 @@ function shuffleArray<T>(
       array[index],
     ];
   }
-}
-
-function countMountainNeighbors(
-  territory: Territory,
-  territories: Territory[]
-): number {
-  return territory.neighbors.filter((neighborId) => {
-    const neighbor = territories.find(
-      (entry) => entry.id === neighborId
-    );
-
-    return neighbor?.biome === 'mountain';
-  }).length;
-}
-
-function hasEightMountainNeighbors(
-  territory: Territory,
-  territories: Territory[],
-  dimensions: { rows: number; cols: number }
-): boolean {
-  const index =
-    Number(territory.id.slice(2)) - 1;
-
-  const row =
-    Math.floor(index / dimensions.cols);
-
-  const col =
-    index % dimensions.cols;
-
-  // A mine needs all 8 surrounding cells,
-  // so edge territories can never be mines.
-  if (
-    row === 0 ||
-    row === dimensions.rows - 1 ||
-    col === 0 ||
-    col === dimensions.cols - 1
-  ) {
-    return false;
-  }
-
-  for (let rowOffset = -1; rowOffset <= 1; rowOffset += 1) {
-    for (let colOffset = -1; colOffset <= 1; colOffset += 1) {
-      if (
-        rowOffset === 0 &&
-        colOffset === 0
-      ) {
-        continue;
-      }
-
-      const neighborRow =
-        row + rowOffset;
-
-      const neighborCol =
-        col + colOffset;
-
-      const neighborIndex =
-        neighborRow * dimensions.cols +
-        neighborCol;
-
-      const neighbor =
-        territories.find(
-          (entry) =>
-            Number(entry.id.slice(2)) - 1 ===
-            neighborIndex
-        );
-
-      if (
-        !neighbor ||
-        neighbor.biome !== 'mountain'
-      ) {
-        return false;
-      }
-    }
-  }
-
-  return true;
-}
-
-function hasPotentialMineNeighbors(
-  territory: Territory,
-  territories: Territory[],
-  dimensions: { rows: number; cols: number }
-): boolean {
-  const index =
-    Number(territory.id.slice(2)) - 1;
-
-  const row =
-    Math.floor(index / dimensions.cols);
-
-  const col =
-    index % dimensions.cols;
-
-  if (
-    row === 0 ||
-    row === dimensions.rows - 1 ||
-    col === 0 ||
-    col === dimensions.cols - 1
-  ) {
-    return false;
-  }
-
-  let mountainNeighbors = 0;
-
-  for (let rowOffset = -1; rowOffset <= 1; rowOffset += 1) {
-    for (let colOffset = -1; colOffset <= 1; colOffset += 1) {
-      if (
-        rowOffset === 0 &&
-        colOffset === 0
-      ) {
-        continue;
-      }
-
-      const neighborRow =
-        row + rowOffset;
-
-      const neighborCol =
-        col + colOffset;
-
-      const neighborIndex =
-        neighborRow * dimensions.cols +
-        neighborCol;
-
-      const neighbor =
-        territories.find(
-          (entry) =>
-            Number(entry.id.slice(2)) - 1 ===
-            neighborIndex
-        );
-
-      if (
-        neighbor?.biome === 'mountain'
-      ) {
-        mountainNeighbors += 1;
-      }
-    }
-  }
-
-  return mountainNeighbors >= 7;
-}
-
-function expandMountainsForMines(
-  territories: Territory[],
-  dimensions: { rows: number; cols: number },
-  mineCount: number
-): void {
-  while (
-    territories.filter(
-      (territory) =>
-        territory.biome === 'mountain' &&
-        hasEightMountainNeighbors(
-          territory,
-          territories,
-          dimensions
-        )
-    ).length < mineCount
-  ) {
-    const candidate = territories
-      .filter(
-        (territory) =>
-          territory.biome === 'field' &&
-          hasPotentialMineNeighbors(
-            territory,
-            territories,
-            dimensions
-          )
-      )
-      .sort((a, b) => {
-        const aMountainNeighbors =
-          countMountainNeighbors(
-            a,
-            territories
-          );
-
-        const bMountainNeighbors =
-          countMountainNeighbors(
-            b,
-            territories
-          );
-
-        return (
-          bMountainNeighbors -
-          aMountainNeighbors
-        );
-      })[0];
-
-    if (!candidate) {
-      break;
-    }
-
-    candidate.biome = 'mountain';
-  }
-}
-
-export function placeMines(
-  territories: Territory[],
-  dimensions: { rows: number; cols: number },
-  mineCount: number,
-  rng: Rng
-): string[] {
-  const mineTerritoryIds: string[] = [];
-
-  const candidateTerritories = territories.filter(
-    (territory) =>
-      territory.biome === 'mountain' &&
-      hasEightMountainNeighbors(
-        territory,
-        territories,
-        dimensions
-      )
-  );
-
-  // Shuffle candidates.
-  for (
-    let index = candidateTerritories.length - 1;
-    index > 0;
-    index -= 1
-  ) {
-    const randomIndex = Math.floor(
-      rng() * (index + 1)
-    );
-
-    [
-      candidateTerritories[index],
-      candidateTerritories[randomIndex],
-    ] = [
-      candidateTerritories[randomIndex],
-      candidateTerritories[index],
-    ];
-  }
-
-  for (const territory of candidateTerritories) {
-    if (mineTerritoryIds.length >= mineCount) {
-      break;
-    }
-
-    mineTerritoryIds.push(territory.id);
-  }
-
-  return mineTerritoryIds;
 }
