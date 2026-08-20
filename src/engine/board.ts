@@ -270,6 +270,8 @@ function wouldCreateLongArm(
   return length >= 3;
 }
 
+// //#endregion
+
 // ============================================================
 // #region BOARD CLEANUP
 // ============================================================
@@ -519,6 +521,8 @@ export function fillEnclosedBoardHoles(
       );
   }
 }
+
+// //#endregion
 
 // ============================================================
 // #region MOUNTAIN BIOMES / MINES
@@ -911,6 +915,8 @@ export function placeMines(
   return mineTerritoryIds;
 }
 
+// //#endregion
+
 // ============================================================
 // #region FIELD BIOMES
 // ============================================================
@@ -1207,6 +1213,8 @@ export function generateFieldBiomes(
     }
   }
 }
+
+// //#endregion
 
 // ============================================================
 // #region RIVER BIOMES
@@ -2397,6 +2405,8 @@ function getDirection(
 
   return 'west';
 }
+
+// //#endregion
 
 // ============================================================
 // #region GENERAL UTILITY
