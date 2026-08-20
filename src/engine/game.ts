@@ -188,7 +188,8 @@ export function canPlaceSettlement(
    *  W  X   E
    * SW  S  SE
    *
-   * Unlike territory.neighbors, this includes diagonals.
+   * A settlement needs one full territory of space
+   * from mountains, rivers, and the outer water.
    */
   for (let rowOffset = -1; rowOffset <= 1; rowOffset += 1) {
     for (let colOffset = -1; colOffset <= 1; colOffset += 1) {
@@ -200,14 +201,18 @@ export function canPlaceSettlement(
       const neighborRow = row + rowOffset;
       const neighborCol = col + colOffset;
 
-      // Outside the board grid is fine.
+      /*
+       * Outside the board grid represents outer water.
+       * Therefore, a settlement cannot be placed directly
+       * against the edge of the map.
+       */
       if (
         neighborRow < 0 ||
         neighborRow >= board.dimensions.rows ||
         neighborCol < 0 ||
         neighborCol >= board.dimensions.cols
       ) {
-        continue;
+        return false;
       }
 
       const neighborIndex =
@@ -221,13 +226,13 @@ export function canPlaceSettlement(
       );
 
       /*
-       * If there is a territory touching this one,
-       * it must be forest or field.
+       * A missing territory represents the outer water.
+       * Mountains and rivers also prevent settlement placement.
        */
       if (
-        neighbor &&
-        neighbor.biome !== 'forest' &&
-        neighbor.biome !== 'field'
+        !neighbor ||
+        (neighbor.biome !== 'forest' &&
+          neighbor.biome !== 'field')
       ) {
         return false;
       }
