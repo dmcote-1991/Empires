@@ -66,6 +66,26 @@ export function BoardView({
   const isStartingTurn =
     currentPlayer?.territoryIds.length === 0;
 
+    const renderWater = (index: number) => {
+    return (
+      <div
+        key={`water-${index}`}
+        className="tile-wrapper"
+      >
+        <div className="tile river-map-water" />
+      </div>
+    );
+  };
+
+  const territoryByIndex = new Map(
+    gameState.board.territories.map((territory) => {
+      const index =
+        Number(territory.id.slice(2)) - 1;
+
+      return [index, territory];
+    })
+  );
+
   const renderTerritory = (territory: Territory) => {
     const owner = gameState.players.find(
       (player) => player.id === territory.owner
@@ -414,30 +434,48 @@ export function BoardView({
         <strong>Current turn</strong>
         <span>{gameState.players.find((player) => player.id === currentPlayerId)?.name}</span>
       </div>
-      <div
+            <div
         className="board-grid"
         style={{
           gridTemplateColumns: `repeat(${gameState.board.dimensions.cols}, minmax(0, 1fr))`,
+          gridTemplateRows: `repeat(${gameState.board.dimensions.rows}, minmax(0, 1fr))`,
         }}
       >
-  {gameState.board.territories.map((territory) => {
-          const index = Number(territory.id.slice(2)) - 1;
-          const row = Math.floor(index / gameState.board.dimensions.cols);
-          const col = index % gameState.board.dimensions.cols;
+        {Array.from(
+          {
+            length:
+              gameState.board.dimensions.rows *
+              gameState.board.dimensions.cols,
+          },
+          (_, index) => {
+            const territory =
+              territoryByIndex.get(index);
 
-          return (
-            <div
-              key={territory.id}
-              className="tile-wrapper"
-              style={{
-                gridColumn: col + 1,
-                gridRow: row + 1,
-              }}
-            >
-              {renderTerritory(territory)}
-            </div>
-          );
-        })}
+            const row = Math.floor(
+              index /
+                gameState.board.dimensions.cols
+            );
+
+            const col =
+              index %
+              gameState.board.dimensions.cols;
+
+            return (
+              <div
+                key={territory?.id ?? `water-${index}`}
+                className="tile-wrapper"
+                style={{
+                  gridColumn: col + 1,
+                  gridRow: row + 1,
+                }}
+              >
+                {territory
+                  ? renderTerritory(territory)
+                  : renderWater(index)}
+              </div>
+            );
+          }
+        )}
       </div>
     </div>
   );

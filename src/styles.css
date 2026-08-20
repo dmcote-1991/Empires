@@ -59,6 +59,13 @@ background: #2e4736;
   background: #3f6673;
 }
 
+.river-map-water {
+  background: #26414a;
+  border: none;
+  pointer-events: none;
+  cursor: default;
+}
+
 .tile.settlement-option {
   outline: 3px solid rgba(255, 255, 255, 0.9);
   outline-offset: -3px;
