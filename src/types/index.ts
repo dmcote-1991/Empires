@@ -12,7 +12,7 @@ export interface Player {
   gold: number;
   eliminated: boolean;
   territoryIds: string[];
-  settlementId: string | null;
+  capitalSettlementId: string | null;
 }
 
 export interface Territory {
@@ -36,6 +36,7 @@ export interface Settlement {
   owner: string;
   name: string;
   population: number;
+  isCapital: boolean;
 }
 
 export interface Board {
@@ -74,13 +75,33 @@ export interface GameState {
 }
 
 export interface Move {
-  type: 'claim' | 'endClaiming' | 'buy' | 'sell' | 'upgrade' | 'produce' | 'skip';
+  type:
+    | 'claim'
+    | 'endClaiming'
+    | 'buy'
+    | 'sell'
+    | 'upgrade'
+    | 'produce'
+    | 'establishSettlement'
+    | 'evacuateSettlement'
+    | 'tearDownSettlement'
+    | 'skip';
   targetTerritoryId?: string;
   payload?: Record<string, unknown>;
 }
 
-export type ActionName = 'claim' | 'endClaiming' | 'buy' | 'sell' | 'upgrade' | 'produce' | 'skip';
-
+export type ActionName =
+  | 'claim'
+  | 'endClaiming'
+  | 'buy'
+  | 'sell'
+  | 'upgrade'
+  | 'produce'
+  | 'establishSettlement'
+  | 'evacuateSettlement'
+  | 'tearDownSettlement'
+  | 'skip';
+  
 export interface AvailableAction {
   type: ActionName;
   label: string;

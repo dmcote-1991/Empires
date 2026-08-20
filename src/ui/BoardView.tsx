@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { GameState, Territory } from '../types';
 import { getAvailableActions, canPlaceSettlement } from '../engine/game';
 
@@ -13,9 +14,20 @@ interface BoardViewProps {
   ) => void;
 
   onAction: (
-    type: 'claim' | 'endClaiming' | 'buy' | 'sell' | 'upgrade' | 'produce' | 'skip',
+    type:
+      | 'claim'
+      | 'endClaiming'
+      | 'buy'
+      | 'sell'
+      | 'upgrade'
+      | 'produce'
+      | 'establishSettlement'
+      | 'evacuateSettlement'
+      | 'tearDownSettlement'
+      | 'skip',
     territoryId: string,
-    buyerPlayerId?: string
+    buyerPlayerId?: string,
+    payload?: Record<string, unknown>
   ) => void;
 
   getSellBuyers: (territoryId: string) => {
@@ -51,6 +63,9 @@ export function BoardView({
   settlementName,
   setSettlementName,
 }: BoardViewProps) {
+  const [showEvacuationOptions, setShowEvacuationOptions] =
+    useState(false);
+
   const currentPlayerId = gameState.turn.order[gameState.turn.currentPlayerIndex];
 
   const isClaiming =
@@ -370,6 +385,40 @@ export function BoardView({
                   </div>
                 )}
 
+                {showEvacuationOptions && (
+                  <div className="action-group">
+                    <div className="action-menu-title">
+                      Evacuate Population
+                    </div>
+
+                    {[25, 50, 75].map((percentage) => (
+                      <button
+                        key={percentage}
+                        onClick={() => {
+                          onAction(
+                            'evacuateSettlement',
+                            territory.id,
+                            undefined,
+                            { percentage }
+                          );
+
+                          setShowEvacuationOptions(false);
+                        }}
+                      >
+                        Evacuate {percentage}%
+                      </button>
+                    ))}
+
+                    <button
+                      onClick={() =>
+                        setShowEvacuationOptions(false)
+                      }
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+
                 {availableActions.map((action) =>
                   action.type === 'sell' ? (
                     <div
@@ -409,12 +458,17 @@ export function BoardView({
                   ) : (
                     <button
                       key={action.type}
-                      onClick={() =>
+                      onClick={() => {
+                        if (action.type === 'evacuateSettlement') {
+                          setShowEvacuationOptions(true);
+                          return;
+                        }
+
                         onAction(
                           action.type,
                           territory.id
-                        )
-                      }
+                        );
+                      }}
                     >
                       {action.label}
                     </button>

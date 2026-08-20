@@ -94,7 +94,7 @@ export const createInitialGameState = (options: {
     gold: 0,
     eliminated: false,
     territoryIds: [],
-    settlementId: null,
+    capitalSettlementId: null,
   }));
 
   const boardWithMines: Board = {
@@ -299,6 +299,46 @@ export function canPlaceSettlement(
       ) {
         return false;
       }
+    }
+  }
+
+  return true;
+}
+
+export function canEstablishSettlement(
+  board: Board,
+  territory: Territory,
+  playerId: string
+): boolean {
+  if (!canPlaceSettlement(board, territory)) {
+    return false;
+  }
+
+  if (territory.owner !== playerId) {
+    return false;
+  }
+
+  for (const neighborId of territory.neighbors) {
+    const neighbor = board.territories.find(
+      (entry) => entry.id === neighborId
+    );
+
+    if (!neighbor || neighbor.owner !== playerId) {
+      return false;
+    }
+
+    const hasSite =
+      board.settlements.some(
+        (settlement) =>
+          settlement.territoryId === neighbor.id
+      ) ||
+      board.mines.some(
+        (mine) =>
+          mine.territoryId === neighbor.id
+      );
+
+    if (hasSite) {
+      return false;
     }
   }
 
@@ -668,13 +708,46 @@ export const getAvailableActions = (
 
   if (
     territory.owner === currentPlayer.id &&
-    !territory.isMine &&
-    !state.board.settlements.some(
-      (settlement) =>
-        settlement.territoryId ===
-        territory.id
-    )
+    !territory.isMine
   ) {
+    const settlement =
+      state.board.settlements.find(
+        (entry) =>
+          entry.territoryId === territory.id
+      );
+
+    if (settlement) {
+      actions.push({
+        type: 'evacuateSettlement',
+        label: 'Evacuate settlement',
+      });
+
+      if (
+        !settlement.isCapital &&
+        settlement.population <= 100
+      ) {
+        actions.push({
+          type: 'tearDownSettlement',
+          label: 'Tear down settlement',
+        });
+      }
+
+      return actions;
+    }
+
+    if (
+      canEstablishSettlement(
+        state.board,
+        territory,
+        currentPlayer.id
+      )
+    ) {
+      actions.push({
+        type: 'establishSettlement',
+        label: 'Establish Settlement',
+      });
+    }
+
     const upgradeCost =
       state.economy.levelOneValue;
 
@@ -947,6 +1020,7 @@ export const executeGameAction = (
         owner: currentPlayer.id,
         name: settlementName,
         population: 100,
+        isCapital: true,
       };
 
       nextState.board.settlements.push(
@@ -964,7 +1038,7 @@ export const executeGameAction = (
                     ...player.territoryIds,
                     target.id,
                   ],
-                  settlementId:
+                  capitalSettlementId:
                     settlement.id,
                 }
               : player
@@ -1029,6 +1103,205 @@ export const executeGameAction = (
     return {
       success: true,
       state: nextState,
+    };
+  }
+
+  if (
+    move.type === 'establishSettlement' &&
+    move.targetTerritoryId
+  ) {
+    const target =
+      state.board.territories.find(
+        (territory) =>
+          territory.id ===
+          move.targetTerritoryId
+      );
+
+    if (
+      !target ||
+      !canEstablishSettlement(
+        state.board,
+        target,
+        currentPlayer.id
+      ) ||
+      state.board.settlements.some(
+        (settlement) =>
+          settlement.territoryId === target.id
+      )
+    ) {
+      return {
+        success: false,
+        reason:
+          'Invalid settlement location',
+        state,
+      };
+    }
+
+    const settlementName =
+      typeof move.payload?.settlementName ===
+      'string'
+        ? move.payload.settlementName.trim()
+        : '';
+
+    if (!settlementName) {
+      return {
+        success: false,
+        reason:
+          'Settlement name is required',
+        state,
+      };
+    }
+
+    const settlement: Settlement = {
+      id:
+        `settlement-${currentPlayer.id}-${Date.now()}`,
+      territoryId: target.id,
+      owner: currentPlayer.id,
+      name: settlementName,
+      population: 100,
+      isCapital: false,
+    };
+
+    const nextState =
+      cloneState(state);
+
+    nextState.board.settlements.push(
+      settlement
+    );
+
+    return {
+      success: true,
+      state: advanceTurn(nextState),
+    };
+  }
+
+  if (
+    move.type === 'evacuateSettlement' &&
+    move.targetTerritoryId
+  ) {
+    const settlement =
+      state.board.settlements.find(
+        (entry) =>
+          entry.territoryId ===
+          move.targetTerritoryId
+      );
+
+    if (
+      !settlement ||
+      settlement.owner !== currentPlayer.id
+    ) {
+      return {
+        success: false,
+        reason:
+          'Invalid settlement',
+        state,
+      };
+    }
+
+    const percentage =
+      move.payload?.percentage;
+
+    if (
+      percentage !== 25 &&
+      percentage !== 50 &&
+      percentage !== 75
+    ) {
+      return {
+        success: false,
+        reason:
+          'Invalid evacuation percentage',
+        state,
+      };
+    }
+
+    const nextState =
+      cloneState(state);
+
+    const nextSettlement =
+      nextState.board.settlements.find(
+        (entry) =>
+          entry.id === settlement.id
+      );
+
+    if (!nextSettlement) {
+      return {
+        success: false,
+        reason:
+          'Settlement not found',
+        state,
+      };
+    }
+
+    const evacuated =
+      Math.floor(
+        nextSettlement.population *
+        (percentage / 100)
+      );
+
+    nextSettlement.population -=
+      evacuated;
+
+    return {
+      success: true,
+      state: advanceTurn(nextState),
+    };
+  }
+
+  if (
+    move.type === 'tearDownSettlement' &&
+    move.targetTerritoryId
+  ) {
+    const settlement =
+      state.board.settlements.find(
+        (entry) =>
+          entry.territoryId ===
+          move.targetTerritoryId
+      );
+
+    if (
+      !settlement ||
+      settlement.owner !== currentPlayer.id
+    ) {
+      return {
+        success: false,
+        reason:
+          'Invalid settlement',
+        state,
+      };
+    }
+
+    if (settlement.isCapital) {
+      return {
+        success: false,
+        reason:
+          'Capital settlements cannot be torn down',
+        state,
+      };
+    }
+
+    if (
+      settlement.population > 100
+    ) {
+      return {
+        success: false,
+        reason:
+          'Settlement population must be 100 or less',
+        state,
+      };
+    }
+
+    const nextState =
+      cloneState(state);
+
+    nextState.board.settlements =
+      nextState.board.settlements.filter(
+        (entry) =>
+          entry.id !== settlement.id
+      );
+
+    return {
+      success: true,
+      state: advanceTurn(nextState),
     };
   }
 

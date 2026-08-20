@@ -112,7 +112,17 @@ function App() {
   };
 
   const handleAction = (
-    type: 'claim' | 'endClaiming' | 'buy' | 'sell' | 'upgrade' | 'produce' | 'skip',
+    type:
+      | 'claim'
+      | 'endClaiming'
+      | 'buy'
+      | 'sell'
+      | 'upgrade'
+      | 'produce'
+      | 'establishSettlement'
+      | 'evacuateSettlement'
+      | 'tearDownSettlement'
+      | 'skip',
     territoryId: string,
     buyerPlayerId?: string,
     payload?: Record<string, unknown>
