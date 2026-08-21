@@ -1,1 +1,1 @@
-{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/engine/game.test.ts","./src/engine/game.ts","./src/engine/save.ts","./src/hooks/uselocalstorage.ts","./src/types/index.ts","./src/ui/boardview.tsx","./src/ui/sidebar.tsx"],"version":"5.9.3"}
+{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/engine/board.ts","./src/engine/game.test.ts","./src/engine/game.ts","./src/engine/save.ts","./src/hooks/uselocalstorage.ts","./src/types/index.ts","./src/ui/boardview.tsx","./src/ui/sidebar.tsx"],"version":"5.9.3"}

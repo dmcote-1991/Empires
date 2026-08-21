@@ -26,7 +26,7 @@ export function Sidebar({ gameState, onNewGame, onSaveGame, onLoadGame }: Sideba
           const settlement =
             gameState.board.settlements.find(
               (settlement) =>
-                settlement.id === player.settlementId
+                settlement.id === player.capitalSettlementId
             );
 
           return (
