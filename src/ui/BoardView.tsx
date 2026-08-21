@@ -66,6 +66,9 @@ export function BoardView({
   const [showEvacuationOptions, setShowEvacuationOptions] =
     useState(false);
 
+  const [settlementInputTerritoryId, setSettlementInputTerritoryId] =
+    useState<string | null>(null);
+
   const currentPlayerId = gameState.turn.order[gameState.turn.currentPlayerIndex];
 
   const isClaiming =
@@ -419,7 +422,56 @@ export function BoardView({
                   </div>
                 )}
 
-                {availableActions.map((action) =>
+                {settlementInputTerritoryId === territory.id && (
+                  <div className="action-group">
+                    <div className="action-menu-title">
+                      Establish Settlement
+                    </div>
+
+                    <input
+                      type="text"
+                      placeholder="Settlement name"
+                      value={settlementName}
+                      onChange={(event) =>
+                        setSettlementName(event.target.value)
+                      }
+                      onClick={(event) =>
+                        event.stopPropagation()
+                      }
+                    />
+
+                    <button
+                      disabled={!settlementName.trim()}
+                      onClick={() => {
+                        onAction(
+                          'establishSettlement',
+                          territory.id,
+                          undefined,
+                          {
+                            settlementName:
+                              settlementName.trim(),
+                          }
+                        );
+
+                        setSettlementName('');
+                        setSettlementInputTerritoryId(null);
+                      }}
+                    >
+                      Establish Settlement
+                    </button>
+
+                    <button
+                      onClick={() =>
+                        setSettlementInputTerritoryId(null)
+                      }
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+
+                {settlementInputTerritoryId !== territory.id &&
+                availableActions.map((action) =>
                   action.type === 'sell' ? (
                     <div
                       key={action.type}
@@ -458,9 +510,15 @@ export function BoardView({
                   ) : (
                     <button
                       key={action.type}
-                      onClick={() => {
+                      onClick={(event) => {
                         if (action.type === 'evacuateSettlement') {
                           setShowEvacuationOptions(true);
+                          return;
+                        }
+
+                        if (action.type === 'establishSettlement') {
+                          event.stopPropagation();
+                          setSettlementInputTerritoryId(territory.id);
                           return;
                         }
 
