@@ -310,35 +310,117 @@ export function canEstablishSettlement(
   territory: Territory,
   playerId: string
 ): boolean {
-  if (!canPlaceSettlement(board, territory)) {
+  // Target must be forest or field.
+  if (
+    territory.biome !== 'forest' &&
+    territory.biome !== 'field'
+  ) {
     return false;
   }
 
+  // Target must belong to the player.
   if (territory.owner !== playerId) {
     return false;
   }
 
-  for (const neighborId of territory.neighbors) {
-    const neighbor = board.territories.find(
-      (entry) => entry.id === neighborId
-    );
+  const index =
+    Number(territory.id.slice(2)) - 1;
 
-    if (!neighbor || neighbor.owner !== playerId) {
-      return false;
-    }
+  const row = Math.floor(
+    index / board.dimensions.cols
+  );
 
-    const hasSite =
-      board.settlements.some(
-        (settlement) =>
-          settlement.territoryId === neighbor.id
-      ) ||
-      board.mines.some(
-        (mine) =>
-          mine.territoryId === neighbor.id
-      );
+  const col =
+    index % board.dimensions.cols;
 
-    if (hasSite) {
-      return false;
+  /*
+   * Check all 8 surrounding territories:
+   *
+   * NW  N  NE
+   *  W  X   E
+   * SW  S  SE
+   */
+  for (
+    let rowOffset = -1;
+    rowOffset <= 1;
+    rowOffset += 1
+  ) {
+    for (
+      let colOffset = -1;
+      colOffset <= 1;
+      colOffset += 1
+    ) {
+      // Skip the target territory itself.
+      if (
+        rowOffset === 0 &&
+        colOffset === 0
+      ) {
+        continue;
+      }
+
+      const neighborRow =
+        row + rowOffset;
+
+      const neighborCol =
+        col + colOffset;
+
+      /*
+       * Every surrounding position must contain
+       * a territory.
+       */
+      if (
+        neighborRow < 0 ||
+        neighborRow >= board.dimensions.rows ||
+        neighborCol < 0 ||
+        neighborCol >= board.dimensions.cols
+      ) {
+        return false;
+      }
+
+      const neighborIndex =
+        neighborRow * board.dimensions.cols +
+        neighborCol;
+
+      const neighbor =
+        board.territories.find(
+          (entry) =>
+            Number(entry.id.slice(2)) - 1 ===
+            neighborIndex
+        );
+
+      if (!neighbor) {
+        return false;
+      }
+
+      /*
+       * Every surrounding territory must:
+       * - belong to the player
+       * - be forest or field
+       */
+      if (
+        neighbor.owner !== playerId ||
+        (
+          neighbor.biome !== 'forest' &&
+          neighbor.biome !== 'field'
+        )
+      ) {
+        return false;
+      }
+
+      /*
+       * No surrounding territory may already
+       * contain a settlement.
+       */
+      const hasSettlement =
+        board.settlements.some(
+          (settlement) =>
+            settlement.territoryId ===
+            neighbor.id
+        );
+
+      if (hasSettlement) {
+        return false;
+      }
     }
   }
 
