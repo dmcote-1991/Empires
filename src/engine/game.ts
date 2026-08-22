@@ -905,6 +905,103 @@ export const executeGameAction = (
         };
       }
 
+      /*
+      * The first placement is special:
+      * it is both the player's first claimed territory
+      * and their capital settlement.
+      *
+      * Do NOT enter claiming mode first.
+      * The settlement name is supplied with this same action.
+      */
+      if (isStartingTurn) {
+        const settlementName =
+          typeof move.payload?.settlementName === 'string'
+            ? move.payload.settlementName.trim()
+            : '';
+
+        if (!settlementName) {
+          return {
+            success: false,
+            reason: 'Settlement name is required',
+            state,
+          };
+        }
+
+        const nextState =
+          cloneState(state);
+
+        const settlement: Settlement = {
+          id: `settlement-${currentPlayer.id}`,
+          territoryId: target.id,
+          owner: currentPlayer.id,
+          name: settlementName,
+          population: 100,
+          isCapital: true,
+        };
+
+        nextState.board.settlements.push(
+          settlement
+        );
+
+        nextState.players =
+          nextState.players.map(
+            (player) =>
+              player.id === currentPlayer.id
+                ? {
+                    ...player,
+                    territoryIds: [
+                      ...player.territoryIds,
+                      target.id,
+                    ],
+                    capitalSettlementId:
+                      settlement.id,
+                  }
+                : player
+          );
+
+        nextState.board.territories =
+          nextState.board.territories.map(
+            (territory) =>
+              territory.id === target.id
+                ? {
+                    ...territory,
+                    owner: currentPlayer.id,
+                  }
+                : territory
+          );
+
+        /*
+        * The capital placement consumes movement just like
+        * any other claim.
+        */
+        const movementCost =
+          getBiomeMovementCost(target.biome);
+
+        nextState.turn.movementRemaining -=
+          movementCost;
+
+        /*
+        * If movement remains, the player can continue claiming.
+        * Otherwise advance the turn.
+        */
+        if (
+          nextState.turn.movementRemaining <= 0
+        ) {
+          return {
+            success: true,
+            state: advanceTurn(nextState),
+          };
+        }
+
+        nextState.turn.phase =
+          'claiming';
+
+        return {
+          success: true,
+          state: nextState,
+        };
+      }
+
       const nextState =
         cloneState(state);
 
