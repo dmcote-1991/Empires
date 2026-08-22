@@ -151,6 +151,7 @@ export function generateBoard(territoryCount: number, rng: Rng): Board {
     territories,
     mines: [],
     settlements: [],
+    lumberYards: [],
     dimensions: { rows, cols },
   };
 }
@@ -2436,3 +2437,67 @@ function shuffleArray<T>(
     ];
   }
 }
+
+export function getEightNeighbors(
+  territory: Territory,
+  territories: Territory[],
+  dimensions: { rows: number; cols: number }
+): Territory[] {
+  const index =
+    Number(territory.id.slice(2)) - 1;
+
+  const row =
+    Math.floor(index / dimensions.cols);
+
+  const col =
+    index % dimensions.cols;
+
+  const neighbors: Territory[] = [];
+
+  for (let rowOffset = -1; rowOffset <= 1; rowOffset += 1) {
+    for (let colOffset = -1; colOffset <= 1; colOffset += 1) {
+      if (
+        rowOffset === 0 &&
+        colOffset === 0
+      ) {
+        continue;
+      }
+
+      const neighborRow =
+        row + rowOffset;
+
+      const neighborCol =
+        col + colOffset;
+
+      if (
+        neighborRow < 0 ||
+        neighborRow >= dimensions.rows ||
+        neighborCol < 0 ||
+        neighborCol >= dimensions.cols
+      ) {
+        continue;
+      }
+
+      const neighborIndex =
+        neighborRow * dimensions.cols +
+        neighborCol;
+
+      const neighborId =
+        `t-${neighborIndex + 1}`;
+
+      const neighbor =
+        territories.find(
+          (entry) =>
+            entry.id === neighborId
+        );
+
+      if (neighbor) {
+        neighbors.push(neighbor);
+      }
+    }
+  }
+
+  return neighbors;
+}
+
+// //#endregion

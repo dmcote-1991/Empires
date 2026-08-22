@@ -8,6 +8,7 @@ import {
   Player, 
   PlayerConfig, 
   Settlement, 
+  LumberYard,
   Territory 
 } from '../types';
 
@@ -18,6 +19,7 @@ import {
   fillEnclosedBoardHoles,
   generateRiverBiomes,
   placeMines,
+  getEightNeighbors,
 } from './board';
 
 
@@ -105,6 +107,7 @@ export const createInitialGameState = (options: {
       efficiency: 1
     })),
     settlements: [],
+    lumberYards: [],
     dimensions: board.dimensions,
   };
 
@@ -217,88 +220,117 @@ export function canPlaceSettlement(
     return false;
   }
 
-  const index =
-    Number(territory.id.slice(2)) - 1;
-
-  const row = Math.floor(
-    index / board.dimensions.cols
+  const neighbors = getEightNeighbors(
+    territory,
+    board.territories,
+    board.dimensions
   );
 
-  const col =
-    index % board.dimensions.cols;
+  // Must have all 8 surrounding territories.
+  if (neighbors.length !== 8) {
+    return false;
+  }
 
-  /*
-   * Check all 8 surrounding cells:
-   *
-   * NW  N  NE
-   *  W  X   E
-   * SW  S  SE
-   *
-   * A settlement needs one full territory of space
-   * from mountains, rivers, and the outer water.
-   */
-  for (
-    let rowOffset = -1;
-    rowOffset <= 1;
-    rowOffset += 1
+  // All 8 surrounding territories must be forest or field.
+  return neighbors.every(
+    (neighbor) =>
+      neighbor.biome === 'forest' ||
+      neighbor.biome === 'field'
+  );
+}
+
+export type SiteType =
+  | 'settlement'
+  | 'lumberYard';
+
+export function canEstablishSite(
+  board: Board,
+  territory: Territory,
+  playerId: string,
+  siteType: SiteType
+): boolean {
+  // Target must be owned by the player.
+  if (territory.owner !== playerId) {
+    return false;
+  }
+
+  // Target biome requirement.
+  if (
+    siteType === 'settlement' &&
+    territory.biome !== 'forest' &&
+    territory.biome !== 'field'
   ) {
-    for (
-      let colOffset = -1;
-      colOffset <= 1;
-      colOffset += 1
+    return false;
+  }
+
+  if (
+    siteType === 'lumberYard' &&
+    territory.biome !== 'forest'
+  ) {
+    return false;
+  }
+
+  // No site may already exist on the target.
+  const hasSite =
+    board.settlements.some(
+      (site) =>
+        site.territoryId === territory.id
+    ) ||
+    board.lumberYards.some(
+      (site) =>
+        site.territoryId === territory.id
+    );
+
+  if (hasSite) {
+    return false;
+  }
+
+  const neighbors = getEightNeighbors(
+    territory,
+    board.territories,
+    board.dimensions
+  );
+
+  // All 8 surrounding territories must exist.
+  if (neighbors.length !== 8) {
+    return false;
+  }
+
+  for (const neighbor of neighbors) {
+    // All 8 must be owned by the player.
+    if (neighbor.owner !== playerId) {
+      return false;
+    }
+
+    // Biome requirements.
+    if (
+      siteType === 'settlement' &&
+      neighbor.biome !== 'forest' &&
+      neighbor.biome !== 'field'
     ) {
-      // Skip the territory itself.
-      if (
-        rowOffset === 0 &&
-        colOffset === 0
-      ) {
-        continue;
-      }
+      return false;
+    }
 
-      const neighborRow =
-        row + rowOffset;
+    if (
+      siteType === 'lumberYard' &&
+      neighbor.biome !== 'forest'
+    ) {
+      return false;
+    }
 
-      const neighborCol =
-        col + colOffset;
+    // No site may exist in any surrounding territory.
+    const hasNeighborSite =
+      board.settlements.some(
+        (site) =>
+          site.territoryId === neighbor.id
+      ) ||
+      board.lumberYards.some(
+        (site) =>
+          site.territoryId === neighbor.id
+      );
 
-      /*
-       * Outside the board grid represents outer water.
-       * Therefore, a settlement cannot be placed directly
-       * against the edge of the map.
-       */
-      if (
-        neighborRow < 0 ||
-        neighborRow >= board.dimensions.rows ||
-        neighborCol < 0 ||
-        neighborCol >= board.dimensions.cols
-      ) {
-        return false;
-      }
-
-      const neighborIndex =
-        neighborRow * board.dimensions.cols +
-        neighborCol;
-
-      const neighbor =
-        board.territories.find(
-          (entry) =>
-            Number(entry.id.slice(2)) - 1 ===
-            neighborIndex
-        );
-
-      /*
-       * A missing territory represents the outer water.
-       * Mountains and rivers also prevent settlement placement.
-       */
-      if (
-        !neighbor ||
-        (
-          neighbor.biome !== 'forest' &&
-          neighbor.biome !== 'field'
-        )
-      ) {
-        return false;
-      }
+    if (hasNeighborSite) {
+      return false;
     }
   }
 
@@ -310,121 +342,25 @@ export function canEstablishSettlement(
   territory: Territory,
   playerId: string
 ): boolean {
-  // Target must be forest or field.
-  if (
-    territory.biome !== 'forest' &&
-    territory.biome !== 'field'
-  ) {
-    return false;
-  }
-
-  // Target must belong to the player.
-  if (territory.owner !== playerId) {
-    return false;
-  }
-
-  const index =
-    Number(territory.id.slice(2)) - 1;
-
-  const row = Math.floor(
-    index / board.dimensions.cols
+  return canEstablishSite(
+    board,
+    territory,
+    playerId,
+    'settlement'
   );
+}
 
-  const col =
-    index % board.dimensions.cols;
-
-  /*
-   * Check all 8 surrounding territories:
-   *
-   * NW  N  NE
-   *  W  X   E
-   * SW  S  SE
-   */
-  for (
-    let rowOffset = -1;
-    rowOffset <= 1;
-    rowOffset += 1
-  ) {
-    for (
-      let colOffset = -1;
-      colOffset <= 1;
-      colOffset += 1
-    ) {
-      // Skip the target territory itself.
-      if (
-        rowOffset === 0 &&
-        colOffset === 0
-      ) {
-        continue;
-      }
-
-      const neighborRow =
-        row + rowOffset;
-
-      const neighborCol =
-        col + colOffset;
-
-      /*
-       * Every surrounding position must contain
-       * a territory.
-       */
-      if (
-        neighborRow < 0 ||
-        neighborRow >= board.dimensions.rows ||
-        neighborCol < 0 ||
-        neighborCol >= board.dimensions.cols
-      ) {
-        return false;
-      }
-
-      const neighborIndex =
-        neighborRow * board.dimensions.cols +
-        neighborCol;
-
-      const neighbor =
-        board.territories.find(
-          (entry) =>
-            Number(entry.id.slice(2)) - 1 ===
-            neighborIndex
-        );
-
-      if (!neighbor) {
-        return false;
-      }
-
-      /*
-       * Every surrounding territory must:
-       * - belong to the player
-       * - be forest or field
-       */
-      if (
-        neighbor.owner !== playerId ||
-        (
-          neighbor.biome !== 'forest' &&
-          neighbor.biome !== 'field'
-        )
-      ) {
-        return false;
-      }
-
-      /*
-       * No surrounding territory may already
-       * contain a settlement.
-       */
-      const hasSettlement =
-        board.settlements.some(
-          (settlement) =>
-            settlement.territoryId ===
-            neighbor.id
-        );
-
-      if (hasSettlement) {
-        return false;
-      }
-    }
-  }
-
-  return true;
+export function canEstablishLumberYard(
+  board: Board,
+  territory: Territory,
+  playerId: string
+): boolean {
+  return canEstablishSite(
+    board,
+    territory,
+    playerId,
+    'lumberYard'
+  );
 }
 
 export const isConnectedTerritorySet = (
@@ -631,6 +567,13 @@ function cloneState(
             ...settlement,
           })
         ),
+
+      lumberYards:
+        state.board.lumberYards.map(
+          (lumberYard) => ({
+            ...lumberYard,
+          })
+        ),
     },
   };
 }
@@ -827,6 +770,19 @@ export const getAvailableActions = (
       actions.push({
         type: 'establishSettlement',
         label: 'Establish Settlement',
+      });
+    }
+
+    if (
+      canEstablishLumberYard(
+        state.board,
+        territory,
+        currentPlayer.id
+      )
+    ) {
+      actions.push({
+        type: 'establishLumberYard',
+        label: 'Establish Lumber Yard',
       });
     }
 
@@ -1477,6 +1433,53 @@ export const executeGameAction = (
         (entry) =>
           entry.id !== settlement.id
       );
+
+    return {
+      success: true,
+      state: advanceTurn(nextState),
+    };
+  }
+
+  if (
+    move.type === 'establishLumberYard' &&
+    move.targetTerritoryId
+  ) {
+    const target =
+      state.board.territories.find(
+        (territory) =>
+          territory.id ===
+          move.targetTerritoryId
+      );
+
+    if (
+      !target ||
+      !canEstablishLumberYard(
+        state.board,
+        target,
+        currentPlayer.id
+      )
+    ) {
+      return {
+        success: false,
+        reason:
+          'Invalid lumber yard location',
+        state,
+      };
+    }
+
+    const lumberYard: LumberYard = {
+      id:
+        `lumber-yard-${currentPlayer.id}-${Date.now()}`,
+      territoryId: target.id,
+      owner: currentPlayer.id,
+    };
+
+    const nextState =
+      cloneState(state);
+
+    nextState.board.lumberYards.push(
+      lumberYard
+    );
 
     return {
       success: true,

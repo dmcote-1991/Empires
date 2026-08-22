@@ -39,10 +39,17 @@ export interface Settlement {
   isCapital: boolean;
 }
 
+export interface LumberYard {
+  id: string;
+  territoryId: string;
+  owner: string;
+}
+
 export interface Board {
   territories: Territory[];
   mines: Mine[];
   settlements: Settlement[];
+  lumberYards: LumberYard[];
   dimensions: {
     rows: number;
     cols: number;
@@ -85,6 +92,7 @@ export interface Move {
     | 'establishSettlement'
     | 'evacuateSettlement'
     | 'tearDownSettlement'
+    | 'establishLumberYard'
     | 'skip';
   targetTerritoryId?: string;
   payload?: Record<string, unknown>;
@@ -100,6 +108,7 @@ export type ActionName =
   | 'establishSettlement'
   | 'evacuateSettlement'
   | 'tearDownSettlement'
+  | 'establishLumberYard'
   | 'skip';
   
 export interface AvailableAction {

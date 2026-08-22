@@ -24,6 +24,7 @@ interface BoardViewProps {
       | 'establishSettlement'
       | 'evacuateSettlement'
       | 'tearDownSettlement'
+      | 'establishLumberYard'
       | 'skip',
     territoryId: string,
     buyerPlayerId?: string,
@@ -115,9 +116,14 @@ export function BoardView({
           settlement.territoryId === territory.id
       );
 
+    const lumberYard =
+      gameState.board.lumberYards.find(
+        (lumberYard) =>
+          lumberYard.territoryId === territory.id
+      );
+
     const isSettlementOption =
       isStartingTurn &&
-      !territory.owner &&
       canPlaceSettlement(
         gameState.board,
         territory
@@ -317,11 +323,13 @@ export function BoardView({
 
           {settlement
             ? '🏘️'
-            : territory.isMine
-              ? '⛏️'
-              : territory.owner
-                ? territory.level
-                : ''}
+            : lumberYard
+              ? '🪵'
+              : territory.isMine
+                ? '⛏️'
+                : territory.owner
+                  ? territory.level
+                  : ''}
         </button>
 
         {settlement && (

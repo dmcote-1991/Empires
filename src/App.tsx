@@ -122,6 +122,7 @@ function App() {
       | 'establishSettlement'
       | 'evacuateSettlement'
       | 'tearDownSettlement'
+      | 'establishLumberYard'
       | 'skip',
     territoryId: string,
     buyerPlayerId?: string,
