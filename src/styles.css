@@ -112,7 +112,7 @@ background: #2e4736;
   position: relative;
 }
 
-.settlement-tooltip {
+.site-tooltip {
   position: absolute;
   bottom: calc(100% + 6px);
   left: 50%;
@@ -141,7 +141,7 @@ background: #2e4736;
   z-index: 100;
 }
 
-.tile-wrapper:hover .settlement-tooltip {
+.tile-wrapper:hover .site-tooltip {
   opacity: 1;
 }
 

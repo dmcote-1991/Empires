@@ -261,6 +261,8 @@ export function BoardView({
         <button
           className={`tile ${territory.biome} ${
             territory.isMine ? 'mine' : ''
+          } ${
+            territory.isSite ? 'site' : ''
           } ${territory.owner ? 'owned' : ''} ${
             hasTopOwnerBoundary ? 'owner-border-top' : ''
           } ${
@@ -332,10 +334,36 @@ export function BoardView({
                   : ''}
         </button>
 
-        {settlement && (
-          <div className="settlement-tooltip">
-            <strong>{settlement.name}</strong>
-            <span>Population: {settlement.population}</span>
+        {territory.isSite && (
+          <div className="site-tooltip">
+            {settlement && (
+              <>
+                <strong>Settlement: {settlement.name}</strong>
+                <span>Population: {settlement.population}</span>
+                {settlement.isCapital && (
+                  <span>Capital Settlement</span>
+                )}
+              </>
+            )}
+
+            {lumberYard && (
+              <>
+                <strong>Lumber Yard</strong>
+                <span>Owner: {owner?.name}</span>
+              </>
+            )}
+
+            {territory.isMine && (
+              <>
+                <strong>Mine</strong>
+                <span>Efficiency: {
+                  gameState.board.mines.find(
+                    (mine) =>
+                      mine.territoryId === territory.id
+                  )?.efficiency ?? 0
+                }</span>
+              </>
+            )}
           </div>
         )}
 

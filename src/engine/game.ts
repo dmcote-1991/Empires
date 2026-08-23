@@ -84,6 +84,7 @@ export const createInitialGameState = (options: {
     return {
       ...territory,
       isMine,
+      isSite: isMine,
       level: 1,
       owner: null,
     } satisfies Territory;
@@ -239,6 +240,34 @@ export function canPlaceSettlement(
   );
 }
 
+export function hasMineInEightNeighbors(
+  board: Board,
+  territory: Territory
+): boolean {
+  const neighbors = getEightNeighbors(
+    territory,
+    board.territories,
+    board.dimensions
+  );
+
+  return neighbors.some(
+    (neighbor) => neighbor.isMine
+  );
+}
+
+export function hasSite(
+  board: Board,
+  territoryId: string
+): boolean {
+  return (
+    board.territories.some(
+      (territory) =>
+        territory.id === territoryId &&
+        territory.isSite
+    )
+  );
+}
+
 export type SiteType =
   | 'settlement'
   | 'lumberYard';
@@ -251,6 +280,11 @@ export function canEstablishSite(
 ): boolean {
   // Target must be owned by the player.
   if (territory.owner !== playerId) {
+    return false;
+  }
+
+  // A territory can only contain one site.
+  if (territory.isSite) {
     return false;
   }
 
@@ -267,21 +301,6 @@ export function canEstablishSite(
     siteType === 'lumberYard' &&
     territory.biome !== 'forest'
   ) {
-    return false;
-  }
-
-  // No site may already exist on the target.
-  const hasSite =
-    board.settlements.some(
-      (site) =>
-        site.territoryId === territory.id
-    ) ||
-    board.lumberYards.some(
-      (site) =>
-        site.territoryId === territory.id
-    );
-
-  if (hasSite) {
     return false;
   }
 
@@ -302,7 +321,7 @@ export function canEstablishSite(
       return false;
     }
 
-    // Biome requirements.
+    // All 8 must satisfy the site's biome requirement.
     if (
       siteType === 'settlement' &&
       neighbor.biome !== 'forest' &&
@@ -318,18 +337,8 @@ export function canEstablishSite(
       return false;
     }
 
-    // No site may exist in any surrounding territory.
-    const hasNeighborSite =
-      board.settlements.some(
-        (site) =>
-          site.territoryId === neighbor.id
-      ) ||
-      board.lumberYards.some(
-        (site) =>
-          site.territoryId === neighbor.id
-      );
-
-    if (hasNeighborSite) {
+    // No site may exist in any of the 8 surrounding territories.
+    if (neighbor.isSite) {
       return false;
     }
   }
@@ -370,13 +379,22 @@ export const isConnectedTerritorySet = (
     return true;
   }
 
+  const territoryIds = new Set(
+    territories.map(
+      (territory) => territory.id
+    )
+  );
+
   const visited = new Set<string>();
   const frontier = [territories[0].id];
 
   while (frontier.length > 0) {
     const currentId = frontier.pop()!;
 
-    if (visited.has(currentId)) {
+    if (
+      visited.has(currentId) ||
+      !territoryIds.has(currentId)
+    ) {
       continue;
     }
 
@@ -389,14 +407,19 @@ export const isConnectedTerritorySet = (
 
     current?.neighbors.forEach(
       (neighborId) => {
-        if (!visited.has(neighborId)) {
+        if (
+          territoryIds.has(neighborId) &&
+          !visited.has(neighborId)
+        ) {
           frontier.push(neighborId);
         }
       }
     );
   }
 
-  return visited.size === territories.length;
+  return (
+    visited.size === territories.length
+  );
 };
 
 // //#endregion
@@ -423,6 +446,10 @@ function getMineProduction(
   state: GameState,
   playerId: string
 ): number {
+  if (state.settings.mineCount <= 0) {
+    return 0;
+  }
+  
   const playerMineCount =
     state.board.territories.filter(
       (territory) =>
@@ -503,11 +530,20 @@ function advanceTurn(
 ): GameState {
   const nextState = cloneState(state);
 
+  const previousPlayerIndex =
+    nextState.turn.currentPlayerIndex;
+
   nextState.turn.currentPlayerIndex =
     (
-      nextState.turn.currentPlayerIndex + 1
+      previousPlayerIndex + 1
     ) %
     nextState.players.length;
+
+  if (
+    nextState.turn.currentPlayerIndex === 0
+  ) {
+    nextState.turn.round += 1;
+  }
 
   nextState.turn.phase = 'action';
 
@@ -921,6 +957,10 @@ export const executeGameAction = (
       const canStartClaiming =
         isStartingTurn
           ? !target.isMine &&
+            !hasMineInEightNeighbors(
+              state.board,
+              target
+            ) &&
             canPlaceSettlement(
               state.board,
               target
@@ -1004,6 +1044,7 @@ export const executeGameAction = (
                 ? {
                     ...territory,
                     owner: currentPlayer.id,
+                    isSite: true,
                   }
                 : territory
           );
@@ -1207,8 +1248,7 @@ export const executeGameAction = (
           territory.id === target.id
             ? {
                 ...territory,
-                owner:
-                  currentPlayer.id,
+                owner: currentPlayer.id,
               }
             : territory
       );
@@ -1303,6 +1343,17 @@ export const executeGameAction = (
     nextState.board.settlements.push(
       settlement
     );
+
+    nextState.board.territories =
+      nextState.board.territories.map(
+        (territory) =>
+          territory.id === target.id
+            ? {
+                ...territory,
+                isSite: true,
+              }
+            : territory
+      );
 
     return {
       success: true,
@@ -1433,6 +1484,17 @@ export const executeGameAction = (
         (entry) =>
           entry.id !== settlement.id
       );
+    
+    nextState.board.territories =
+      nextState.board.territories.map(
+        (territory) =>
+          territory.id === settlement.territoryId
+            ? {
+                ...territory,
+                isSite: false,
+              }
+            : territory
+      );
 
     return {
       success: true,
@@ -1474,12 +1536,22 @@ export const executeGameAction = (
       owner: currentPlayer.id,
     };
 
-    const nextState =
-      cloneState(state);
+    const nextState = cloneState(state);
 
     nextState.board.lumberYards.push(
       lumberYard
     );
+
+    nextState.board.territories =
+      nextState.board.territories.map(
+        (territory) =>
+          territory.id === target.id
+            ? {
+                ...territory,
+                isSite: true,
+              }
+            : territory
+      );
 
     return {
       success: true,
@@ -1498,20 +1570,13 @@ export const executeGameAction = (
           move.targetTerritoryId
       );
 
-    const hasSettlement =
-      state.board.settlements.some(
-        (settlement) =>
-          settlement.territoryId ===
-          target?.id
-      );
-
     if (
       !target ||
       !target.owner ||
       target.owner === currentPlayer.id ||
       target.isMine ||
       target.biome === 'river' ||
-      hasSettlement
+      target.isSite
     ) {
       return {
         success: false,
@@ -1633,19 +1698,12 @@ export const executeGameAction = (
           move.targetTerritoryId
       );
 
-    const hasSettlement =
-      state.board.settlements.some(
-        (settlement) =>
-          settlement.territoryId ===
-          target?.id
-      );
-
     if (
       !target ||
       target.owner !==
         currentPlayer.id ||
       target.isMine ||
-      hasSettlement
+      target.isSite
     ) {
       return {
         success: false,
@@ -1799,20 +1857,13 @@ export const executeGameAction = (
           move.targetTerritoryId
       );
 
-    const hasSettlement =
-      state.board.settlements.some(
-        (settlement) =>
-          settlement.territoryId ===
-          target?.id
-      );
-
     if (
       !target ||
       target.owner !==
         currentPlayer.id ||
       target.isMine ||
       target.biome === 'river' ||
-      hasSettlement
+      target.isSite
     ) {
       return {
         success: false,
