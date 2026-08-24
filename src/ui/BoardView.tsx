@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { GameState, Territory } from '../types';
-import { getAvailableActions, canPlaceSettlement } from '../engine/game';
-
+import {
+  getAvailableActions,
+  canPlaceSettlement,
+  getAffordablePopulationGrowthOptions,
+} from '../engine/game';
 interface BoardViewProps {
   gameState: GameState;
   selectedTerritoryId: string | null;
@@ -23,6 +26,7 @@ interface BoardViewProps {
       | 'produce'
       | 'produceWood'
       | 'establishSettlement'
+      | 'growSettlement'
       | 'evacuateSettlement'
       | 'tearDownSettlement'
       | 'establishLumberYard'
@@ -67,6 +71,9 @@ export function BoardView({
   setSettlementName,
 }: BoardViewProps) {
   const [showEvacuationOptions, setShowEvacuationOptions] =
+    useState(false);
+
+  const [showPopulationGrowthOptions, setShowPopulationGrowthOptions] =
     useState(false);
 
   const [settlementInputTerritoryId, setSettlementInputTerritoryId] =
@@ -434,7 +441,51 @@ export function BoardView({
                   </div>
                 )}
 
-                {showEvacuationOptions && (
+                {showPopulationGrowthOptions && settlement ? (
+                  <div className="action-group">
+                    <div className="action-menu-title">
+                      Grow Population
+                    </div>
+
+                    {getAffordablePopulationGrowthOptions(
+                      settlement.population,
+                      currentPlayer?.wood ?? 0
+                    ).map((option) => (
+                      <button
+                        key={option.percentage}
+                        onClick={() => {
+                          onAction(
+                            'growSettlement',
+                            territory.id,
+                            undefined,
+                            {
+                              percentage:
+                                option.percentage,
+                            }
+                          );
+
+                          setShowPopulationGrowthOptions(false);
+                        }}
+                      >
+                        +{option.percentage}% Population
+                        {' — '}
+                        +{option.populationIncrease}
+                        {' — '}
+                        {option.woodCost} Wood
+                      </button>
+                    ))}
+
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setShowPopulationGrowthOptions(false);
+                        onSelectTerritory?.(territory.id);
+                      }}
+                    >
+                      Back
+                    </button>
+                  </div>
+                ) : showEvacuationOptions ? (
                   <div className="action-group">
                     <div className="action-menu-title">
                       Evacuate Population
@@ -459,13 +510,19 @@ export function BoardView({
                     ))}
 
                     <button
-                      onClick={() =>
-                        setShowEvacuationOptions(false)
-                      }
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setShowEvacuationOptions(false);
+                        onSelectTerritory?.(territory.id);
+                      }}
                     >
                       Cancel
                     </button>
                   </div>
+                ) : (
+                  <>
+                    {/* NORMAL ACTION MENU GOES HERE */}
+                  </>
                 )}
 
                 {settlementInputTerritoryId === territory.id && (
@@ -516,68 +573,79 @@ export function BoardView({
                   </div>
                 )}
 
-                {settlementInputTerritoryId !== territory.id &&
-                availableActions.map((action) =>
-                  action.type === 'sell' ? (
-                    <div
-                      key={action.type}
-                      className="action-group"
-                    >
-                      {getSellBuyers(territory.id)
-                        .filter((player) => {
-                          const price =
-                            gameState.economy.levelOneValue *
-                            territory.level;
+                {!showPopulationGrowthOptions &&
+                  !showEvacuationOptions &&
+                  settlementInputTerritoryId !== territory.id &&
+                  availableActions.map((action) =>
+                    action.type === 'sell' ? (
+                      <div
+                        key={action.type}
+                        className="action-group"
+                      >
+                        {getSellBuyers(territory.id)
+                          .filter((player) => {
+                            const price =
+                              gameState.economy.levelOneValue *
+                              territory.level;
 
-                          return player.gold >= price;
-                        })
-                        .map((player) => {
-                          const price =
-                            gameState.economy.levelOneValue *
-                            territory.level;
+                            return player.gold >= price;
+                          })
+                          .map((player) => {
+                            const price =
+                              gameState.economy.levelOneValue *
+                              territory.level;
 
-                          return (
-                            <button
-                              key={`${action.type}-${player.id}`}
-                              onClick={() =>
-                                onAction(
-                                  'sell',
-                                  territory.id,
-                                  player.id
-                                )
-                              }
-                            >
-                              Sell to {player.name} (Price: {price}{' '}
-                              Gold)
-                            </button>
+                            return (
+                              <button
+                                key={`${action.type}-${player.id}`}
+                                onClick={() =>
+                                  onAction(
+                                    'sell',
+                                    territory.id,
+                                    player.id
+                                  )
+                                }
+                              >
+                                Sell to {player.name} (Price: {price}{' '}
+                                Gold)
+                              </button>
+                            );
+                          })}
+                      </div>
+                    ) : (
+                      <button
+                        key={action.type}
+                        onClick={(event) => {
+                          if (action.type === 'evacuateSettlement') {
+                            event.stopPropagation();
+                            setShowEvacuationOptions(true);
+                            setShowPopulationGrowthOptions(false);
+                            return;
+                          }
+
+                          if (action.type === 'growSettlement') {
+                            event.stopPropagation();
+                            setShowPopulationGrowthOptions(true);
+                            setShowEvacuationOptions(false);
+                            return;
+                          }
+
+                          if (action.type === 'establishSettlement') {
+                            event.stopPropagation();
+                            setSettlementInputTerritoryId(territory.id);
+                            return;
+                          }
+
+                          onAction(
+                            action.type,
+                            territory.id
                           );
-                        })}
-                    </div>
-                  ) : (
-                    <button
-                      key={action.type}
-                      onClick={(event) => {
-                        if (action.type === 'evacuateSettlement') {
-                          setShowEvacuationOptions(true);
-                          return;
-                        }
-
-                        if (action.type === 'establishSettlement') {
-                          event.stopPropagation();
-                          setSettlementInputTerritoryId(territory.id);
-                          return;
-                        }
-
-                        onAction(
-                          action.type,
-                          territory.id
-                        );
-                      }}
-                    >
-                      {action.label}
-                    </button>
-                  )
-                )}
+                        }}
+                      >
+                        {action.label}
+                      </button>
+                    )
+                  )}
               </>
             )}
           </div>

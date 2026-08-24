@@ -501,6 +501,65 @@ function getLumberYardProduction(
   return Math.round(production);
 }
 
+const POPULATION_GROWTH_BASE_WOOD = 10;
+export function getPopulationGrowthCost(
+  currentPopulation: number,
+  populationIncrease: number
+): number {
+  let totalCost = 0;
+
+  for (let i = 0; i < populationIncrease; i++) {
+    const population = currentPopulation + i;
+
+    totalCost += Math.max(
+      1,
+      Math.ceil(
+        POPULATION_GROWTH_BASE_WOOD *
+        Math.sqrt(population / 100)
+      )
+    );
+  }
+
+  return totalCost;
+}
+
+export function getAffordablePopulationGrowthOptions(
+  population: number,
+  wood: number
+): {
+  percentage: 1 | 5 | 10;
+  populationIncrease: number;
+  woodCost: number;
+}[] {
+  const percentages: (1 | 5 | 10)[] = [1, 5, 10];
+
+  return percentages
+    .map((percentage) => {
+      const populationIncrease = Math.max(
+        1,
+        Math.ceil(
+          population * (percentage / 100)
+        )
+      );
+
+      const woodCost =
+        getPopulationGrowthCost(
+          population,
+          populationIncrease
+        );
+
+      return {
+        percentage,
+        populationIncrease,
+        woodCost,
+      };
+    })
+    .filter(
+      (option) =>
+        option.woodCost <= wood
+    );
+}
+
 function updateTotalGold(
   state: GameState
 ): void {
@@ -983,6 +1042,19 @@ export const getAvailableActions = (
         type: 'evacuateSettlement',
         label: 'Evacuate settlement',
       });
+
+      const affordableGrowthOptions =
+        getAffordablePopulationGrowthOptions(
+          settlement.population,
+          currentPlayer.wood
+        );
+
+      if (affordableGrowthOptions.length > 0) {
+        actions.push({
+          type: 'growSettlement',
+          label: 'Grow Population',
+        });
+      }
 
       if (
         !settlement.isCapital &&
@@ -1650,6 +1722,104 @@ export const executeGameAction = (
 
     nextSettlement.population -=
       evacuated;
+
+    return {
+      success: true,
+      state: advanceTurn(nextState),
+    };
+  }
+
+  if (
+    move.type === 'growSettlement' &&
+    move.targetTerritoryId
+  ) {
+    const settlement =
+      state.board.settlements.find(
+        (entry) =>
+          entry.territoryId ===
+          move.targetTerritoryId
+      );
+
+    if (
+      !settlement ||
+      settlement.owner !== currentPlayer.id
+    ) {
+      return {
+        success: false,
+        reason: 'Invalid settlement',
+        state,
+      };
+    }
+
+    const percentage =
+      move.payload?.percentage;
+
+    if (
+      percentage !== 1 &&
+      percentage !== 5 &&
+      percentage !== 10
+    ) {
+      return {
+        success: false,
+        reason: 'Invalid population growth percentage',
+        state,
+      };
+    }
+
+    const populationIncrease =
+      Math.max(
+        1,
+        Math.ceil(
+          settlement.population *
+          (percentage / 100)
+        )
+      );
+
+    const growthCost =
+      getPopulationGrowthCost(
+        settlement.population,
+        populationIncrease
+      );
+
+    if (
+      currentPlayer.wood < growthCost
+    ) {
+      return {
+        success: false,
+        reason:
+          'Not enough wood to grow population',
+        state,
+      };
+    }
+
+    const nextState =
+      cloneState(state);
+
+    const nextSettlement =
+      nextState.board.settlements.find(
+        (entry) =>
+          entry.id === settlement.id
+      );
+
+    const player =
+      nextState.players.find(
+        (player) =>
+          player.id === currentPlayer.id
+      );
+
+    if (!nextSettlement || !player) {
+      return {
+        success: false,
+        reason:
+          'Settlement or player not found',
+        state,
+      };
+    }
+
+    player.wood -= growthCost;
+
+    nextSettlement.population +=
+      populationIncrease;
 
     return {
       success: true,

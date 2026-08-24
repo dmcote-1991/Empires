@@ -121,6 +121,7 @@ function App() {
       | 'produce'
       | 'produceWood'
       | 'establishSettlement'
+      | 'growSettlement'
       | 'evacuateSettlement'
       | 'tearDownSettlement'
       | 'establishLumberYard'
