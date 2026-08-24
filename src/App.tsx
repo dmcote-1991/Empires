@@ -124,6 +124,7 @@ function App() {
       | 'evacuateSettlement'
       | 'tearDownSettlement'
       | 'establishLumberYard'
+      | 'buildBridge'
       | 'skip',
     territoryId: string,
     buyerPlayerId?: string,

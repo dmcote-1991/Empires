@@ -26,6 +26,7 @@ interface BoardViewProps {
       | 'evacuateSettlement'
       | 'tearDownSettlement'
       | 'establishLumberYard'
+      | 'buildBridge'
       | 'skip',
     territoryId: string,
     buyerPlayerId?: string,
@@ -324,19 +325,27 @@ export function BoardView({
             <span className="biome-border biome-border-right" />
           )}
 
-          {settlement
-            ? '🏘️'
-            : lumberYard
-              ? '🪵'
-              : territory.isMine
-                ? '⛏️'
-                : territory.owner
-                  ? territory.level
-                  : ''}
+          {territory.hasBridge
+            ? '🌉'
+            : settlement
+              ? '🏘️'
+              : lumberYard
+                ? '🪵'
+                : territory.isMine
+                  ? '⛏️'
+                  : territory.owner
+                    ? territory.level
+                    : ''}
         </button>
 
-        {territory.isSite && (
+        {(territory.isSite || territory.hasBridge) && (
           <div className="site-tooltip">
+            {territory.hasBridge && (
+              <>
+                <strong>Bridge</strong>
+              </>
+            )}
+
             {settlement && (
               <>
                 <strong>Settlement: {settlement.name}</strong>
@@ -421,7 +430,7 @@ export function BoardView({
                     <div>🌾 Field: 1</div>
                     <div>🌲 Forest: 2</div>
                     <div>⛰️ Mountain: 4</div>
-                    <div>🌊 River: impassable</div>
+                    <div>🌊 River: impassable (unless bridged)</div>
                   </div>
                 )}
 

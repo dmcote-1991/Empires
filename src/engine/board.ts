@@ -128,6 +128,7 @@ export function generateBoard(territoryCount: number, rng: Rng): Board {
       neighbors: [],
       isMine: false,
       isSite: false,
+      hasBridge: false,
       biome: 'forest',
     });
   }
@@ -464,6 +465,7 @@ export function fillEnclosedBoardHoles(
       neighbors: [],
       isMine: false,
       isSite: false,
+      hasBridge: false,
       biome: mostCommonBiome as Territory['biome'],
     });
   }

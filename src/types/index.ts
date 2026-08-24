@@ -23,6 +23,7 @@ export interface Territory {
   neighbors: string[];
   isMine: boolean;
   isSite: boolean;
+  hasBridge: boolean;
   biome: 'forest' | 'field' | 'mountain' | 'river';
 }
 
@@ -96,6 +97,7 @@ export interface Move {
     | 'evacuateSettlement'
     | 'tearDownSettlement'
     | 'establishLumberYard'
+    | 'buildBridge'
     | 'skip';
   targetTerritoryId?: string;
   payload?: Record<string, unknown>;
@@ -113,6 +115,7 @@ export type ActionName =
   | 'evacuateSettlement'
   | 'tearDownSettlement'
   | 'establishLumberYard'
+  | 'buildBridge'
   | 'skip';
   
 export interface AvailableAction {

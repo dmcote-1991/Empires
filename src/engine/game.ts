@@ -85,6 +85,7 @@ export const createInitialGameState = (options: {
       ...territory,
       isMine,
       isSite: isMine,
+      hasBridge: false,
       level: 1,
       owner: null,
     } satisfies Territory;
@@ -170,9 +171,9 @@ export const getGameSummary = (state: GameState) => ({
 // ============================================================
 
 export const getBiomeMovementCost = (
-  biome: Territory['biome']
+  territory: Territory
 ): number => {
-  switch (biome) {
+  switch (territory.biome) {
     case 'field':
       return 1;
     case 'forest':
@@ -180,7 +181,7 @@ export const getBiomeMovementCost = (
     case 'mountain':
       return 4;
     case 'river':
-      return Infinity;
+      return territory.hasBridge ? 1 : Infinity;
   }
 };
 
@@ -516,6 +517,163 @@ function updateTotalGold(
 // ============================================================
 // #region ACTION HELPERS
 // ============================================================
+const BRIDGE_COST = 1000;
+export function canBuildBridge(
+  state: GameState,
+  territory: Territory,
+  playerId: string
+): boolean {
+  if (territory.biome !== 'river') {
+    return false;
+  }
+
+  if (territory.hasBridge) {
+    return false;
+  }
+
+  // Bridges cannot be built directly next to another bridge.
+  const adjacentBridge = territory.neighbors.some(
+    (neighborId) => {
+      const neighbor = state.board.territories.find(
+        (entry) => entry.id === neighborId
+      );
+
+      return neighbor?.hasBridge === true;
+    }
+  );
+
+  if (adjacentBridge) {
+    return false;
+  }
+
+  const player = state.players.find(
+    (entry) => entry.id === playerId
+  );
+
+  if (!player || player.wood < BRIDGE_COST) {
+    return false;
+  }
+
+  // A bridge must touch territory owned by the player.
+  const ownedCardinalNeighbor = territory.neighbors.some(
+    (neighborId) =>
+      player.territoryIds.includes(neighborId)
+  );
+
+  if (!ownedCardinalNeighbor) {
+    return false;
+  }
+
+  const index =
+    Number(territory.id.slice(2)) - 1;
+
+  const row =
+    Math.floor(index / state.board.dimensions.cols);
+
+  const col =
+    index % state.board.dimensions.cols;
+
+  const { rows, cols } = state.board.dimensions;
+
+  const getTerritoryAt = (
+    targetRow: number,
+    targetCol: number
+  ): Territory | undefined => {
+    if (
+      targetRow < 0 ||
+      targetRow >= rows ||
+      targetCol < 0 ||
+      targetCol >= cols
+    ) {
+      return undefined;
+    }
+
+    const targetId =
+      `t-${targetRow * cols + targetCol + 1}`;
+
+    return state.board.territories.find(
+      (entry) => entry.id === targetId
+    );
+  };
+
+  /*
+   * Determine the river's local flow direction.
+   * Rivers are generated using cardinal neighbors.
+   */
+  const north = getTerritoryAt(row - 1, col);
+  const south = getTerritoryAt(row + 1, col);
+  const east = getTerritoryAt(row, col + 1);
+  const west = getTerritoryAt(row, col - 1);
+
+    /*
+   * A bridge can only be built when the selected river
+   * territory is part of a 3-territory straight river.
+   *
+   * Horizontal:
+   *
+   *   F  F  F
+   *   R  X  R
+   *   F  F  F
+   *
+   * Vertical:
+   *
+   *   F  R  F
+   *   F  X  F
+   *   F  R  F
+   *
+   * The six non-river territories surrounding X must
+   * all be field or forest.
+   */
+
+  const horizontalRiver =
+    east?.biome === 'river' &&
+    west?.biome === 'river';
+
+  const verticalRiver =
+    north?.biome === 'river' &&
+    south?.biome === 'river';
+
+  if (!horizontalRiver && !verticalRiver) {
+    return false;
+  }
+
+  /*
+   * Get the six territories that are not part of the
+   * three-territory cardinal river line.
+   */
+  const surroundingTerritories: (
+    Territory | undefined
+  )[] = horizontalRiver
+    ? [
+        getTerritoryAt(row - 1, col - 1),
+        getTerritoryAt(row - 1, col),
+        getTerritoryAt(row - 1, col + 1),
+        getTerritoryAt(row + 1, col - 1),
+        getTerritoryAt(row + 1, col),
+        getTerritoryAt(row + 1, col + 1),
+      ]
+    : [
+        getTerritoryAt(row - 1, col - 1),
+        getTerritoryAt(row - 1, col + 1),
+        getTerritoryAt(row, col - 1),
+        getTerritoryAt(row, col + 1),
+        getTerritoryAt(row + 1, col - 1),
+        getTerritoryAt(row + 1, col + 1),
+      ];
+
+  /*
+   * All six surrounding territories must exist and
+   * must be either field or forest.
+   */
+  return surroundingTerritories.every(
+    (entry) =>
+      entry &&
+      (
+        entry.biome === 'field' ||
+        entry.biome === 'forest'
+      )
+  );
+}
 
 function getEligibleBuyers(
   state: GameState,
@@ -528,8 +686,8 @@ function getEligibleBuyers(
     (neighborId) => {
       const neighbor =
         state.board.territories.find(
-          (territory) =>
-            territory.id === neighborId
+          (entry) =>
+            entry.id === neighborId
         );
 
       if (
@@ -696,7 +854,8 @@ export const getAvailableActions = (
     }
 
     if (
-      territory.biome === 'river'
+      territory.biome === 'river' &&
+      !territory.hasBridge
     ) {
       return actions;
     }
@@ -715,7 +874,7 @@ export const getAvailableActions = (
 
     const movementCost =
       getBiomeMovementCost(
-        territory.biome
+        territory
       );
 
     if (
@@ -741,12 +900,26 @@ export const getAvailableActions = (
 
   const actions: AvailableAction[] = [];
 
+  if (
+    canBuildBridge(
+      state,
+      territory,
+      currentPlayer.id
+    )
+  ) {
+    actions.push({
+      type: 'buildBridge',
+      label: `Build Bridge (Cost: ${BRIDGE_COST} Wood)`,
+    });
+  }
+
   if (!territory.owner) {
-    // Rivers can never be owned.
+    // Rivers without bridges cannot be owned.
     if (
-      territory.biome === 'river'
+      territory.biome === 'river' &&
+      !territory.hasBridge
     ) {
-      return [];
+      return actions;
     }
 
     const isStartingTurn =
@@ -861,12 +1034,12 @@ export const getAvailableActions = (
       actions.push({
         type: 'produceWood',
         label:
-          `Produce wood (Production: ${
+          `Produce Wood (+${
             getLumberYardProduction(
               state,
               currentPlayerId
             )
-          })`,
+          } Wood)`,
       });
     }
 
@@ -978,7 +1151,10 @@ export const executeGameAction = (
     if (
       !target ||
       target.owner ||
-      target.biome === 'river'
+      (
+        target.biome === 'river' &&
+        !target.hasBridge
+      )
     ) {
       return {
         success: false,
@@ -1102,7 +1278,7 @@ export const executeGameAction = (
         * any other claim.
         */
         const movementCost =
-          getBiomeMovementCost(target.biome);
+          getBiomeMovementCost(target);
 
         nextState.turn.movementRemaining -=
           movementCost;
@@ -1197,7 +1373,7 @@ export const executeGameAction = (
 
     const movementCost =
       getBiomeMovementCost(
-        target.biome
+        target
       );
 
     if (
@@ -1913,6 +2089,7 @@ export const executeGameAction = (
     if (
       !target ||
       target.owner !== currentPlayer.id ||
+      !target.isSite ||
       !lumberYard ||
       lumberYard.owner !== currentPlayer.id
     ) {
@@ -2132,6 +2309,74 @@ export const executeGameAction = (
       success: true,
       state:
         advanceTurn(state),
+    };
+  }
+
+  if (
+    move.type === 'buildBridge' &&
+    move.targetTerritoryId
+  ) {
+    const target =
+      state.board.territories.find(
+        (territory) =>
+          territory.id === move.targetTerritoryId
+      );
+
+    if (
+      !target ||
+      !canBuildBridge(
+        state,
+        target,
+        currentPlayer.id
+      )
+    ) {
+      return {
+        success: false,
+        reason: 'Invalid bridge location',
+        state,
+      };
+    }
+
+    if (currentPlayer.wood < BRIDGE_COST) {
+      return {
+        success: false,
+        reason: 'Not enough wood to build bridge',
+        state,
+      };
+    }
+
+    const nextState =
+      cloneState(state);
+
+    nextState.board.territories =
+      nextState.board.territories.map(
+        (territory) =>
+          territory.id === target.id
+            ? {
+                ...territory,
+                hasBridge: true,
+                owner: currentPlayer.id,
+              }
+            : territory
+      );
+
+    const player =
+      nextState.players.find(
+        (player) =>
+          player.id === currentPlayer.id
+      );
+
+    if (player) {
+      player.wood -= BRIDGE_COST;
+
+      player.territoryIds.push(
+        target.id
+      );
+    }
+
+    return {
+      success: true,
+      state: advanceTurn(nextState),
     };
   }
 
