@@ -10,6 +10,7 @@ export interface Player {
   name: string;
   color: PlayerColor;
   gold: number;
+  wood: number;
   eliminated: boolean;
   territoryIds: string[];
   capitalSettlementId: string | null;
@@ -90,6 +91,7 @@ export interface Move {
     | 'sell'
     | 'upgrade'
     | 'produce'
+    | 'produceWood'
     | 'establishSettlement'
     | 'evacuateSettlement'
     | 'tearDownSettlement'
@@ -106,6 +108,7 @@ export type ActionName =
   | 'sell'
   | 'upgrade'
   | 'produce'
+  | 'produceWood'
   | 'establishSettlement'
   | 'evacuateSettlement'
   | 'tearDownSettlement'

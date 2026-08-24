@@ -95,6 +95,7 @@ export const createInitialGameState = (options: {
     name: playerConfig.name,
     color: playerConfig.color,
     gold: 0,
+    wood: 0,
     eliminated: false,
     territoryIds: [],
     capitalSettlementId: null,
@@ -472,6 +473,33 @@ function getMineProduction(
   );
 }
 
+const LUMBER_YARD_BASE_PRODUCTION = 100;
+const LUMBER_YARD_BONUS = 1.2;
+
+function getLumberYardProduction(
+  state: GameState,
+  playerId: string
+): number {
+  const lumberYardCount =
+    state.board.lumberYards.filter(
+      (lumberYard) =>
+        lumberYard.owner === playerId
+    ).length;
+
+  if (lumberYardCount <= 0) {
+    return 0;
+  }
+
+  const production =
+    LUMBER_YARD_BASE_PRODUCTION *
+    Math.pow(
+      LUMBER_YARD_BONUS,
+      lumberYardCount - 1
+    );
+
+  return Math.round(production);
+}
+
 function updateTotalGold(
   state: GameState
 ): void {
@@ -809,7 +837,7 @@ export const getAvailableActions = (
       });
     }
 
-    if (
+        if (
       canEstablishLumberYard(
         state.board,
         territory,
@@ -822,12 +850,32 @@ export const getAvailableActions = (
       });
     }
 
+    const lumberYard =
+      state.board.lumberYards.find(
+        (lumberYard) =>
+          lumberYard.territoryId === territory.id &&
+          lumberYard.owner === currentPlayer.id
+      );
+
+    if (lumberYard) {
+      actions.push({
+        type: 'produceWood',
+        label:
+          `Produce wood (Production: ${
+            getLumberYardProduction(
+              state,
+              currentPlayerId
+            )
+          })`,
+      });
+    }
+
     const upgradeCost =
       state.economy.levelOneValue;
 
     if (
-      currentPlayer.gold >=
-      upgradeCost
+      !territory.isSite &&
+      currentPlayer.gold >= upgradeCost
     ) {
       actions.push({
         type: 'upgrade',
@@ -1843,6 +1891,60 @@ export const executeGameAction = (
     return {
       success: true,
       state: nextState,
+    };
+  }
+
+  if (
+    move.type === 'produceWood' &&
+    move.targetTerritoryId
+  ) {
+    const target =
+      state.board.territories.find(
+        (territory) =>
+          territory.id === move.targetTerritoryId
+      );
+
+    const lumberYard =
+      state.board.lumberYards.find(
+        (entry) =>
+          entry.territoryId === move.targetTerritoryId
+      );
+
+    if (
+      !target ||
+      target.owner !== currentPlayer.id ||
+      !lumberYard ||
+      lumberYard.owner !== currentPlayer.id
+    ) {
+      return {
+        success: false,
+        reason: 'Invalid produce wood action',
+        state,
+      };
+    }
+
+    const nextState =
+      cloneState(state);
+
+    const woodProduced =
+      getLumberYardProduction(
+        nextState,
+        currentPlayerId
+      );
+
+    const player =
+      nextState.players.find(
+        (player) =>
+          player.id === currentPlayer.id
+      );
+
+    if (player) {
+      player.wood += woodProduced;
+    }
+
+    return {
+      success: true,
+      state: advanceTurn(nextState),
     };
   }
 

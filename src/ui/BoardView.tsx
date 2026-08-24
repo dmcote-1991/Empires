@@ -21,6 +21,7 @@ interface BoardViewProps {
       | 'sell'
       | 'upgrade'
       | 'produce'
+      | 'produceWood'
       | 'establishSettlement'
       | 'evacuateSettlement'
       | 'tearDownSettlement'

@@ -40,6 +40,8 @@ export function Sidebar({ gameState, onNewGame, onSaveGame, onLoadGame }: Sideba
 
               <div>Gold: {player.gold}</div>
 
+              <div>Wood: {player.wood}</div>
+
               <div>
                 Territories: {player.territoryIds.length}
               </div>
