@@ -476,18 +476,35 @@ function getMineProduction(
 
 const LUMBER_YARD_BASE_PRODUCTION = 100;
 const LUMBER_YARD_BONUS = 1.5;
+const LUMBER_YARD_COST = 1000;
 
 const SETTLEMENT_COST = 2000;
+
+function getLumberYardCount(
+  state: GameState,
+  playerId: string
+): number {
+  return state.board.lumberYards.filter(
+    (lumberYard) =>
+      lumberYard.owner === playerId
+  ).length;
+}
+
+function getLumberYardCost(
+  state: GameState,
+  playerId: string
+): number {
+  return getLumberYardCount(state, playerId) === 0
+    ? 0
+    : LUMBER_YARD_COST;
+}
 
 function getLumberYardProduction(
   state: GameState,
   playerId: string
 ): number {
   const lumberYardCount =
-    state.board.lumberYards.filter(
-      (lumberYard) =>
-        lumberYard.owner === playerId
-    ).length;
+    getLumberYardCount(state, playerId);
 
   if (lumberYardCount <= 0) {
     return 0;
@@ -1085,7 +1102,14 @@ export const getAvailableActions = (
       });
     }
 
-        if (
+    const lumberYardCost =
+      getLumberYardCost(
+        state,
+        currentPlayer.id
+      );
+
+    if (
+      currentPlayer.wood >= lumberYardCost &&
       canEstablishLumberYard(
         state.board,
         territory,
@@ -1094,7 +1118,10 @@ export const getAvailableActions = (
     ) {
       actions.push({
         type: 'establishLumberYard',
-        label: 'Establish Lumber Yard',
+        label:
+          lumberYardCost === 0
+            ? 'Establish Lumber Yard (Free)'
+            : `Establish Lumber Yard (Cost: ${lumberYardCost} Wood)`,
       });
     }
 
@@ -1929,8 +1956,7 @@ export const executeGameAction = (
     const target =
       state.board.territories.find(
         (territory) =>
-          territory.id ===
-          move.targetTerritoryId
+          territory.id === move.targetTerritoryId
       );
 
     if (
@@ -1949,6 +1975,21 @@ export const executeGameAction = (
       };
     }
 
+    const lumberYardCost =
+      getLumberYardCost(
+        state,
+        currentPlayer.id
+      );
+
+    if (currentPlayer.wood < lumberYardCost) {
+      return {
+        success: false,
+        reason:
+          'Not enough wood to establish lumber yard',
+        state,
+      };
+    }
+
     const lumberYard: LumberYard = {
       id:
         `lumber-yard-${currentPlayer.id}-${Date.now()}`,
@@ -1957,6 +1998,22 @@ export const executeGameAction = (
     };
 
     const nextState = cloneState(state);
+
+    const player =
+      nextState.players.find(
+        (player) =>
+          player.id === currentPlayer.id
+      );
+
+    if (!player) {
+      return {
+        success: false,
+        reason: 'Player not found',
+        state,
+      };
+    }
+
+    player.wood -= lumberYardCost;
 
     nextState.board.lumberYards.push(
       lumberYard
