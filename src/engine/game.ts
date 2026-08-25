@@ -475,7 +475,9 @@ function getMineProduction(
 }
 
 const LUMBER_YARD_BASE_PRODUCTION = 100;
-const LUMBER_YARD_BONUS = 1.2;
+const LUMBER_YARD_BONUS = 1.5;
+
+const SETTLEMENT_COST = 2000;
 
 function getLumberYardProduction(
   state: GameState,
@@ -1070,6 +1072,7 @@ export const getAvailableActions = (
     }
 
     if (
+      currentPlayer.wood >= SETTLEMENT_COST &&
       canEstablishSettlement(
         state.board,
         territory,
@@ -1078,7 +1081,7 @@ export const getAvailableActions = (
     ) {
       actions.push({
         type: 'establishSettlement',
-        label: 'Establish Settlement',
+        label: `Establish Settlement (Cost: ${SETTLEMENT_COST} Wood)`,
       });
     }
 
@@ -1602,8 +1605,15 @@ export const executeGameAction = (
     ) {
       return {
         success: false,
-        reason:
-          'Invalid settlement location',
+        reason: 'Invalid settlement location',
+        state,
+      };
+    }
+
+    if (currentPlayer.wood < SETTLEMENT_COST) {
+      return {
+        success: false,
+        reason: 'Not enough wood to establish settlement',
         state,
       };
     }
@@ -1635,6 +1645,22 @@ export const executeGameAction = (
 
     const nextState =
       cloneState(state);
+
+    const player =
+      nextState.players.find(
+        (player) =>
+          player.id === currentPlayer.id
+      );
+
+    if (!player) {
+      return {
+        success: false,
+        reason: 'Player not found',
+        state,
+      };
+    }
+
+    player.wood -= SETTLEMENT_COST;
 
     nextState.board.settlements.push(
       settlement
