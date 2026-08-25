@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { createInitialGameState, executeGameAction, getAvailableActions, getGameSummary } from './engine/game';
+import {
+  createInitialGameState,
+  executeGameAction,
+  getAvailableActions,
+  getGameSummary,
+  getTerritoryPrice,
+} from './engine/game';
 import { loadGameState, saveGameState } from './engine/save';
 import { BoardView } from './ui/BoardView';
 import { Sidebar } from './ui/Sidebar';
@@ -21,11 +27,10 @@ function App() {
   const [selectedTerritoryId, setSelectedTerritoryId] = useState<string | null>(null);
   const [settlementName, setSettlementName] = useState('');
   const [pendingSale, setPendingSale] = useState<{
-  territoryId: string;
-  buyerPlayerId: string;
-  sellerPlayerId: string;
-  type: 'buy' | 'sell';
-} | null>(null);
+    territoryId: string;
+    buyerPlayerId: string;
+    sellerPlayerId: string;
+  } | null>(null);
 
   const normalizedPlayerConfigs = useMemo(() => {
     const nextConfigs = Array.from({ length: playerCount }, (_, index) => ({
@@ -144,10 +149,18 @@ function App() {
         return;
       }
 
-      // If this is already a confirmed purchase, execute it.
+      const buyerPlayerId =
+        gameState.turn.order[
+          gameState.turn.currentPlayerIndex
+        ];
+
+      const sellerPlayerId = territory.owner;
+
+      // Confirm the purchase.
       if (
-        pendingSale?.type === 'buy' &&
-        pendingSale.territoryId === territoryId
+        pendingSale?.territoryId === territoryId &&
+        pendingSale.buyerPlayerId === buyerPlayerId &&
+        pendingSale.sellerPlayerId === sellerPlayerId
       ) {
         const result = executeGameAction(gameState, {
           type: 'buy',
@@ -156,19 +169,18 @@ function App() {
 
         if (result.success) {
           setGameState(result.state);
+          setPendingSale(null);
           setSelectedTerritoryId(null);
         }
 
         return;
       }
 
-      // Otherwise, ask the seller for confirmation.
+      // First click: show the purchase confirmation.
       setPendingSale({
         territoryId,
-        buyerPlayerId:
-          gameState.turn.order[gameState.turn.currentPlayerIndex],
-        sellerPlayerId: territory.owner,
-        type: 'buy',
+        buyerPlayerId,
+        sellerPlayerId,
       });
 
       return;
@@ -322,7 +334,7 @@ function App() {
                 );
 
                 const price = territory
-                  ? gameState.economy.levelOneValue * territory.level
+                  ? getTerritoryPrice(gameState, territory)
                   : 0;
 
                 return (
@@ -335,11 +347,9 @@ function App() {
                     <button
                       onClick={() => {
                         handleAction(
-                          pendingSale.type === 'buy' ? 'buy' : 'sell',
-                          pendingSale.territoryId,
-                          pendingSale.buyerPlayerId
+                          'buy',
+                          pendingSale.territoryId
                         );
-                        setPendingSale(null);
                       }}
                     >
                       Accept

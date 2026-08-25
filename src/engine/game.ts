@@ -590,6 +590,16 @@ function updateTotalGold(
     );
 }
 
+export function getTerritoryPrice(
+  state: GameState,
+  territory: Territory
+): number {
+  return (
+    state.economy.levelOneValue *
+    territory.level
+  );
+}
+
 // //#endregion
 
 // ============================================================
@@ -2079,9 +2089,10 @@ export const executeGameAction = (
       };
     }
 
-    const buyPrice =
-      state.economy.levelOneValue *
-      target.level;
+    const buyPrice = getTerritoryPrice(
+      state,
+      target
+    );
 
     if (
       currentPlayer.gold <
@@ -2458,9 +2469,10 @@ export const executeGameAction = (
       };
     }
 
-    const salePrice =
-      state.economy.levelOneValue *
-      target.level;
+    const salePrice = getTerritoryPrice(
+      state,
+      target
+    );
 
     if (
       buyer.gold <

@@ -4,6 +4,7 @@ import {
   getAvailableActions,
   canPlaceSettlement,
   getAffordablePopulationGrowthOptions,
+  getTerritoryPrice,
 } from '../engine/game';
 interface BoardViewProps {
   gameState: GameState;
@@ -584,16 +585,18 @@ export function BoardView({
                       >
                         {getSellBuyers(territory.id)
                           .filter((player) => {
-                            const price =
-                              gameState.economy.levelOneValue *
-                              territory.level;
+                            const price = getTerritoryPrice(
+                              gameState,
+                              territory
+                            );
 
                             return player.gold >= price;
                           })
                           .map((player) => {
-                            const price =
-                              gameState.economy.levelOneValue *
-                              territory.level;
+                            const price = getTerritoryPrice(
+                              gameState,
+                              territory
+                            );
 
                             return (
                               <button
