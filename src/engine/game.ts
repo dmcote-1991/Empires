@@ -120,7 +120,7 @@ export const createInitialGameState = (options: {
 
   const economy: Economy = {
     totalGold,
-    levelOneValue:
+    baseTerritoryValue:
       totalGold / Math.max(1, nonMineTerritoryCount),
     mineEfficiency: 1,
   };
@@ -577,7 +577,7 @@ function updateTotalGold(
 export function getTerritoryPrice(
   state: GameState,
 ): number {
-  return state.economy.levelOneValue;
+  return state.economy.baseTerritoryValue;
 }
 
 // //#endregion
@@ -1019,7 +1019,7 @@ export const getAvailableActions = (
     !territory.isMine
   ) {
     const buyCost =
-      state.economy.levelOneValue;
+      state.economy.baseTerritoryValue;
 
     if (
       currentPlayer.gold >= buyCost &&
@@ -1152,7 +1152,7 @@ export const getAvailableActions = (
         type: 'sell',
         label:
           `Sell territory (Price: ${
-            state.economy.levelOneValue
+            state.economy.baseTerritoryValue
           } Gold)`,
       });
     }
@@ -2190,7 +2190,7 @@ export const executeGameAction = (
           !territory.isMine
       ).length;
 
-    nextState.economy.levelOneValue =
+    nextState.economy.baseTerritoryValue =
       Math.round(
         nextState.economy.totalGold /
           Math.max(

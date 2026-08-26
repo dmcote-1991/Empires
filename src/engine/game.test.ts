@@ -99,7 +99,7 @@ describe('Empire of Gold engine', () => {
         { id: 'player-1', name: 'A', color: 'Red', gold: 0, eliminated: false, territoryIds: ['a'], mineIds: [] },
         { id: 'player-2', name: 'B', color: 'Blue', gold: 0, eliminated: false, territoryIds: [], mineIds: [] },
       ],
-      economy: { totalGold: 0, levelOneValue: 1, mineEfficiency: 1 },
+      economy: { totalGold: 0, baseTerritoryValue: 1, mineEfficiency: 1 },
       turn: { currentPlayerIndex: 0, round: 1, order: ['player-1', 'player-2'] },
       settings: { territoryCount: 2, mineCount: 1 },
     };

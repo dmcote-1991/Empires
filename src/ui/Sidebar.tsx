@@ -28,7 +28,7 @@ export function Sidebar({
           {gameState.players.filter((player) => !player.eliminated).length}
         </div>
 
-        <div>Level-1 Value: {gameState.economy.levelOneValue}</div>
+        <div>Level-1 Value: {gameState.economy.baseTerritoryValue}</div>
       </div>
 
       {/* Marketplace */}

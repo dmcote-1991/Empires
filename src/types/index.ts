@@ -60,7 +60,7 @@ export interface Board {
 
 export interface Economy {
   totalGold: number;
-  levelOneValue: number;
+  baseTerritoryValue: number;
   mineEfficiency: number;
 }
 
