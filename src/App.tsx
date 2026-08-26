@@ -122,7 +122,6 @@ function App() {
       | 'endClaiming'
       | 'buy'
       | 'sell'
-      | 'upgrade'
       | 'produce'
       | 'produceWood'
       | 'establishSettlement'
@@ -334,7 +333,7 @@ function App() {
                 );
 
                 const price = territory
-                  ? getTerritoryPrice(gameState, territory)
+                  ? getTerritoryPrice(gameState)
                   : 0;
 
                 return (

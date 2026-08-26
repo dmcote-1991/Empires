@@ -23,7 +23,6 @@ interface BoardViewProps {
       | 'endClaiming'
       | 'buy'
       | 'sell'
-      | 'upgrade'
       | 'produce'
       | 'produceWood'
       | 'establishSettlement'
@@ -341,9 +340,7 @@ export function BoardView({
                 ? '🪵'
                 : territory.isMine
                   ? '⛏️'
-                  : territory.owner
-                    ? territory.level
-                    : ''}
+                  : ''}
         </button>
 
         {(territory.isSite || territory.hasBridge) && (
@@ -585,18 +582,12 @@ export function BoardView({
                       >
                         {getSellBuyers(territory.id)
                           .filter((player) => {
-                            const price = getTerritoryPrice(
-                              gameState,
-                              territory
-                            );
+                            const price = getTerritoryPrice(gameState);
 
                             return player.gold >= price;
                           })
                           .map((player) => {
-                            const price = getTerritoryPrice(
-                              gameState,
-                              territory
-                            );
+                            const price = getTerritoryPrice(gameState);
 
                             return (
                               <button

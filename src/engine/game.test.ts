@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createInitialGameState, executeGameAction, getTerritoryFairValue, getValidStartingTerritories, isConnectedTerritorySet } from './game';
+import { createInitialGameState, executeGameAction, getValidStartingTerritories, isConnectedTerritorySet } from './game';
 
 function makeRng(seed: number) {
   let state = seed;
@@ -127,35 +127,5 @@ describe('Empire of Gold engine', () => {
     const result = executeGameAction(gameState, { type: 'buy', targetTerritoryId: target!.id });
     expect(result.success).toBe(true);
     expect(result.state.board.territories.find((territory) => territory.id === target!.id)?.owner).toBe(playerA.id);
-  });
-
-  it('allows a player to upgrade an owned territory', () => {
-    const gameState = createInitialGameState({
-      playerConfigs: [{ name: 'A', color: 'Red' }, { name: 'B', color: 'Blue' }],
-      territoryCount: 220,
-      mineCount: 4,
-      rng: makeRng(19),
-    });
-
-    const playerA = gameState.players[0];
-    const ownedTerritory = gameState.board.territories.find((territory) => territory.owner === playerA.id)!;
-
-    const result = executeGameAction(gameState, { type: 'upgrade', targetTerritoryId: ownedTerritory.id });
-    expect(result.success).toBe(true);
-    expect(result.state.board.territories.find((territory) => territory.id === ownedTerritory.id)?.level).toBe(2);
-  });
-
-  it('calculates fair values and upgrade costs from the economy', () => {
-    const gameState = createInitialGameState({
-      playerConfigs: [{ name: 'A', color: 'Red' }, { name: 'B', color: 'Blue' }],
-      territoryCount: 200,
-      mineCount: 4,
-      rng: makeRng(13),
-    });
-
-    const territory = gameState.board.territories[0];
-    const levelOneValue = gameState.economy.levelOneValue;
-    expect(getTerritoryFairValue(territory, gameState)).toBe(levelOneValue * territory.level);
-    expect(levelOneValue).toBeGreaterThanOrEqual(0);
   });
 });

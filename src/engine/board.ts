@@ -124,7 +124,6 @@ export function generateBoard(territoryCount: number, rng: Rng): Board {
     territories.push({
       id: `t-${index + 1}`,
       owner: null,
-      level: 1,
       neighbors: [],
       isMine: false,
       isSite: false,
@@ -461,7 +460,6 @@ export function fillEnclosedBoardHoles(
     territories.push({
       id: `t-${index + 1}`,
       owner: null,
-      level: 1,
       neighbors: [],
       isMine: false,
       isSite: false,

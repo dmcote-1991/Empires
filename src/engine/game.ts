@@ -86,7 +86,6 @@ export const createInitialGameState = (options: {
       isMine,
       isSite: isMine,
       hasBridge: false,
-      level: 1,
       owner: null,
     } satisfies Territory;
   });
@@ -429,21 +428,6 @@ export const isConnectedTerritorySet = (
 // ============================================================
 // #region ECONOMY
 // ============================================================
-
-export const getTerritoryFairValue = (
-  territory: Territory,
-  state: GameState
-): number => {
-  if (territory.isMine) {
-    return 100 * state.economy.levelOneValue;
-  }
-
-  return (
-    territory.level *
-    state.economy.levelOneValue
-  );
-};
-
 function getMineProduction(
   state: GameState,
   playerId: string
@@ -592,12 +576,8 @@ function updateTotalGold(
 
 export function getTerritoryPrice(
   state: GameState,
-  territory: Territory
 ): number {
-  return (
-    state.economy.levelOneValue *
-    territory.level
-  );
+  return state.economy.levelOneValue;
 }
 
 // //#endregion
@@ -1039,8 +1019,7 @@ export const getAvailableActions = (
     !territory.isMine
   ) {
     const buyCost =
-      state.economy.levelOneValue *
-      territory.level;
+      state.economy.levelOneValue;
 
     if (
       currentPlayer.gold >= buyCost &&
@@ -1155,20 +1134,6 @@ export const getAvailableActions = (
       });
     }
 
-    const upgradeCost =
-      state.economy.levelOneValue;
-
-    if (
-      !territory.isSite &&
-      currentPlayer.gold >= upgradeCost
-    ) {
-      actions.push({
-        type: 'upgrade',
-        label:
-          `Upgrade territory (Cost: ${upgradeCost} Gold)`,
-      });
-    }
-
     const adjacentOwned =
       state.board.territories.filter(
         (entry) =>
@@ -1187,8 +1152,7 @@ export const getAvailableActions = (
         type: 'sell',
         label:
           `Sell territory (Price: ${
-            state.economy.levelOneValue *
-            territory.level
+            state.economy.levelOneValue
           } Gold)`,
       });
     }
@@ -2089,10 +2053,7 @@ export const executeGameAction = (
       };
     }
 
-    const buyPrice = getTerritoryPrice(
-      state,
-      target
-    );
+    const buyPrice = getTerritoryPrice(state);
 
     if (
       currentPlayer.gold <
@@ -2161,89 +2122,6 @@ export const executeGameAction = (
           return player;
         }
       );
-
-    nextState.turn.currentPlayerIndex =
-      (
-        nextState.turn.currentPlayerIndex +
-        1
-      ) %
-      nextState.players.length;
-
-    return {
-      success: true,
-      state: nextState,
-    };
-  }
-
-  if (
-    move.type === 'upgrade' &&
-    move.targetTerritoryId
-  ) {
-    const target =
-      state.board.territories.find(
-        (territory) =>
-          territory.id ===
-          move.targetTerritoryId
-      );
-
-    if (
-      !target ||
-      target.owner !==
-        currentPlayer.id ||
-      target.isMine ||
-      target.isSite
-    ) {
-      return {
-        success: false,
-        reason:
-          'Invalid upgrade action',
-        state,
-      };
-    }
-
-    const upgradeCost =
-      state.economy.levelOneValue;
-
-    if (
-      currentPlayer.gold <
-      upgradeCost
-    ) {
-      return {
-        success: false,
-        reason:
-          'Not enough gold to upgrade',
-        state,
-      };
-    }
-
-    const nextState =
-      cloneState(state);
-
-    nextState.board.territories =
-      nextState.board.territories.map(
-        (territory) =>
-          territory.id === target.id
-            ? {
-                ...territory,
-                level:
-                  territory.level + 1,
-              }
-            : territory
-      );
-
-    const player =
-      nextState.players.find(
-        (player) =>
-          player.id ===
-          currentPlayer.id
-      );
-
-    if (player) {
-      player.gold -=
-        upgradeCost;
-    }
-
-    updateTotalGold(nextState);
 
     nextState.turn.currentPlayerIndex =
       (
@@ -2469,10 +2347,7 @@ export const executeGameAction = (
       };
     }
 
-    const salePrice = getTerritoryPrice(
-      state,
-      target
-    );
+    const salePrice = getTerritoryPrice(state,);
 
     if (
       buyer.gold <

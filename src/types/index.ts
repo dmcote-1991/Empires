@@ -19,7 +19,6 @@ export interface Player {
 export interface Territory {
   id: string;
   owner: string | null;
-  level: number;
   neighbors: string[];
   isMine: boolean;
   isSite: boolean;
@@ -90,7 +89,6 @@ export interface Move {
     | 'endClaiming'
     | 'buy'
     | 'sell'
-    | 'upgrade'
     | 'produce'
     | 'produceWood'
     | 'establishSettlement'
@@ -109,7 +107,6 @@ export type ActionName =
   | 'endClaiming'
   | 'buy'
   | 'sell'
-  | 'upgrade'
   | 'produce'
   | 'produceWood'
   | 'establishSettlement'
