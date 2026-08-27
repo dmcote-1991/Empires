@@ -46,7 +46,7 @@ export function Sidebar({
           className="marketplace-header"
           onClick={() => setMarketplaceExpanded((expanded) => !expanded)}
         >
-          <strong>Marketplace</strong>
+          <span>Marketplace</span>
           <span>{marketplaceExpanded ? '▼' : '▶'}</span>
         </button>
 
@@ -158,17 +158,15 @@ export function Sidebar({
                       key={listing.id}
                       className="marketplace-listing"
                     >
-                      <div>
-                        <strong>
-                          {listing.quantity} Wood
-                        </strong>
+                      <div className="marketplace-listing-main">
+                        <strong>{listing.quantity} Wood</strong>
+
+                        <span className="marketplace-price">
+                          {listing.pricePerUnit} Gold / Wood
+                        </span>
                       </div>
 
-                      <div>
-                        {listing.pricePerUnit} Gold per unit
-                      </div>
-
-                      <div>
+                      <div className="marketplace-listing-seller">
                         Seller: {seller?.name ?? 'Unknown'}
                       </div>
                     </div>
