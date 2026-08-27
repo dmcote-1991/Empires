@@ -142,7 +142,7 @@ export function Sidebar({
               </div>
             )}
 
-            {gameState.marketplace.length === 0 &&
+            {(gameState.marketplace?.length ?? 0) === 0 &&
               !showSellWoodForm && (
                 <div className="marketplace-empty">
                   Nothing is currently being sold.

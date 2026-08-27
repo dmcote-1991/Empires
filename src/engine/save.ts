@@ -8,7 +8,17 @@ export function saveGameState(gameState: GameState): void {
 
 export function loadGameState(): GameState | null {
   const raw = window.localStorage.getItem(SAVE_KEY);
-  return raw ? (JSON.parse(raw) as GameState) : null;
+
+  if (!raw) {
+    return null;
+  }
+
+  const savedState = JSON.parse(raw) as GameState;
+
+  return {
+    ...savedState,
+    marketplace: savedState.marketplace ?? [],
+  };
 }
 
 export function clearSavedGame(): void {
