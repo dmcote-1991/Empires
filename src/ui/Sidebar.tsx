@@ -1,5 +1,9 @@
 import { useState } from 'react';
-import { GameState, Move } from '../types';
+import {
+  GameState,
+  Move,
+} from '../types';
+import { getMarketplaceListings } from '../engine/game';
 
 interface SidebarProps {
   gameState: GameState;
@@ -139,6 +143,37 @@ export function Sidebar({
                 >
                   List on Marketplace
                 </button>
+              </div>
+            )}
+
+            {gameState.marketplace.length > 0 && (
+              <div className="marketplace-listings">
+                {getMarketplaceListings(gameState).map((listing) => {
+                  const seller = gameState.players.find(
+                    (player) => player.id === listing.sellerPlayerId
+                  );
+
+                  return (
+                    <div
+                      key={listing.id}
+                      className="marketplace-listing"
+                    >
+                      <div>
+                        <strong>
+                          {listing.quantity} Wood
+                        </strong>
+                      </div>
+
+                      <div>
+                        {listing.pricePerUnit} Gold per unit
+                      </div>
+
+                      <div>
+                        Seller: {seller?.name ?? 'Unknown'}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
 
