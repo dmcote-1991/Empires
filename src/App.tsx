@@ -122,6 +122,9 @@ function App() {
       | 'endClaiming'
       | 'buy'
       | 'sell'
+      | 'listMarketplaceItem'
+      | 'buyMarketplaceListing'
+      | 'removeMarketplaceListing'
       | 'produce'
       | 'produceWood'
       | 'establishSettlement'
@@ -364,14 +367,31 @@ function App() {
               })()}
             </div>
           )}
-
         </div>
-        <Sidebar gameState={gameState} onNewGame={() => setGameState(null)} onSaveGame={() => saveGameState(gameState)} onLoadGame={() => {
-          const saved = loadGameState();
-          if (saved) {
-            setGameState(saved);
-          }
-        }} />
+
+        <Sidebar
+          gameState={gameState}
+          onNewGame={() => setGameState(null)}
+          onSaveGame={() => saveGameState(gameState)}
+          onLoadGame={() => {
+            const saved = loadGameState();
+
+            if (saved) {
+              setGameState(saved);
+            }
+          }}
+          onMarketplaceAction={(move) => {
+            const result = executeGameAction(
+              gameState,
+              move
+            );
+
+            if (result.success) {
+              setGameState(result.state);
+            }
+          }}
+        />
+
       </main>
     </div>
   );

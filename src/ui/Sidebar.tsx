@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { GameState } from '../types';
+import { GameState, Move } from '../types';
 
 interface SidebarProps {
   gameState: GameState;
   onNewGame: () => void;
   onSaveGame: () => void;
   onLoadGame: () => void;
+  onMarketplaceAction: (move: Move) => void;
 }
 
 export function Sidebar({
@@ -13,8 +14,12 @@ export function Sidebar({
   onNewGame,
   onSaveGame,
   onLoadGame,
+  onMarketplaceAction,
 }: SidebarProps) {
   const [marketplaceExpanded, setMarketplaceExpanded] = useState(false);
+  const [showSellWoodForm, setShowSellWoodForm] = useState(false);
+  const [sellWoodQuantity, setSellWoodQuantity] = useState('');
+  const [sellWoodPrice, setSellWoodPrice] = useState('');
 
   return (
     <aside className="sidebar">
@@ -43,9 +48,106 @@ export function Sidebar({
 
         {marketplaceExpanded && (
           <div className="marketplace-content">
-            <div className="marketplace-empty">
-              Nothing is currently being sold.
-            </div>
+            <button
+              onClick={() =>
+                setShowSellWoodForm(
+                  (showing) => !showing
+                )
+              }
+            >
+              Sell Wood
+            </button>
+
+            {showSellWoodForm && (
+              <div className="marketplace-sell-form">
+                <div>
+                  Available Wood:{' '}
+                  {gameState.players.find(
+                    (player) =>
+                      player.id ===
+                      gameState.turn.order[
+                        gameState.turn.currentPlayerIndex
+                      ]
+                  )?.wood ?? 0}
+                </div>
+
+                <label>
+                  Quantity:
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={sellWoodQuantity}
+                    onChange={(event) =>
+                      setSellWoodQuantity(
+                        event.target.value
+                      )
+                    }
+                  />
+                </label>
+
+                <label>
+                  Gold per unit:
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={sellWoodPrice}
+                    onChange={(event) =>
+                      setSellWoodPrice(
+                        event.target.value
+                      )
+                    }
+                  />
+                </label>
+
+                <button
+                  onClick={() => {
+                    const quantity =
+                      Number(sellWoodQuantity);
+
+                    const pricePerUnit =
+                      Number(sellWoodPrice);
+
+                    if (
+                      !Number.isInteger(quantity) ||
+                      quantity <= 0
+                    ) {
+                      return;
+                    }
+
+                    if (
+                      !Number.isFinite(pricePerUnit) ||
+                      pricePerUnit <= 0
+                    ) {
+                      return;
+                    }
+
+                    onMarketplaceAction({
+                      type: 'listMarketplaceItem',
+                      payload: {
+                        itemType: 'wood',
+                        quantity,
+                        pricePerUnit,
+                      },
+                    });
+
+                    setSellWoodQuantity('');
+                    setSellWoodPrice('');
+                    setShowSellWoodForm(false);
+                  }}
+                >
+                  List on Marketplace
+                </button>
+              </div>
+            )}
+
+            {gameState.marketplace.length === 0 &&
+              !showSellWoodForm && (
+                <div className="marketplace-empty">
+                  Nothing is currently being sold.
+                </div>
+              )}
           </div>
         )}
       </div>

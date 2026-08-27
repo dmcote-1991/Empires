@@ -47,6 +47,16 @@ export interface LumberYard {
   owner: string;
 }
 
+export interface MarketplaceListing {
+  id: string;
+  sellerPlayerId: string;
+  item: 'wood';
+  quantity: number;
+  pricePerUnit: number;
+  listedRound: number; // Determines when the 5-turn rotation restriction expires
+  listedAt: number;
+}
+
 export interface Board {
   territories: Territory[];
   mines: Mine[];
@@ -77,6 +87,7 @@ export interface GameState {
   players: Player[];
   economy: Economy;
   turn: Turn;
+  marketplace: MarketplaceListing[];
   settings: {
     territoryCount: number;
     mineCount: number;
@@ -89,6 +100,9 @@ export interface Move {
     | 'endClaiming'
     | 'buy'
     | 'sell'
+    | 'listMarketplaceItem'
+    | 'buyMarketplaceListing'
+    | 'removeMarketplaceListing'
     | 'produce'
     | 'produceWood'
     | 'establishSettlement'
@@ -107,6 +121,9 @@ export type ActionName =
   | 'endClaiming'
   | 'buy'
   | 'sell'
+  | 'listMarketplaceItem'
+  | 'buyMarketplaceListing'
+  | 'removeMarketplaceListing'
   | 'produce'
   | 'produceWood'
   | 'establishSettlement'

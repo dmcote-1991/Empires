@@ -9,6 +9,7 @@ import {
   PlayerConfig, 
   Settlement, 
   LumberYard,
+  MarketplaceListing,
   Territory 
 } from '../types';
 
@@ -136,6 +137,7 @@ export const createInitialGameState = (options: {
       phase: 'action',
       movementRemaining: 4,
     },
+    marketplace: [],
     settings: {
       territoryCount: options.territoryCount,
       mineCount: options.mineCount,
@@ -585,6 +587,8 @@ export function getTerritoryPrice(
 // ============================================================
 // #region ACTION HELPERS
 // ============================================================
+
+
 const BRIDGE_COST = 1000;
 export function canBuildBridge(
   state: GameState,
@@ -743,33 +747,81 @@ export function canBuildBridge(
   );
 }
 
-function getEligibleBuyers(
+// function getEligibleBuyers(
+//   state: GameState,
+//   territory: Territory,
+//   currentPlayerId: string
+// ): Player[] {
+//   const buyerIds = new Set<string>();
+
+//   territory.neighbors.forEach(
+//     (neighborId) => {
+//       const neighbor =
+//         state.board.territories.find(
+//           (entry) =>
+//             entry.id === neighborId
+//         );
+
+//       if (
+//         neighbor?.owner &&
+//         neighbor.owner !== currentPlayerId
+//       ) {
+//         buyerIds.add(neighbor.owner);
+//       }
+//     }
+//   );
+
+//   return state.players.filter(
+//     (player) =>
+//       buyerIds.has(player.id)
+//   );
+// }
+
+// //#endregion
+
+// ============================================================
+// #region MARKETPLACE HELPERS
+// ============================================================
+
+export function getMarketplaceListing(
   state: GameState,
-  territory: Territory,
-  currentPlayerId: string
-): Player[] {
-  const buyerIds = new Set<string>();
+  listingId: string
+): MarketplaceListing | undefined {
+  return state.marketplace.find(
+    (listing) => listing.id === listingId
+  );
+}
 
-  territory.neighbors.forEach(
-    (neighborId) => {
-      const neighbor =
-        state.board.territories.find(
-          (entry) =>
-            entry.id === neighborId
-        );
+export function getMarketplaceListings(
+  state: GameState,
+  itemType?: string
+): MarketplaceListing[] {
+  const listings = itemType
+    ? state.marketplace.filter(
+        (listing) => listing.item === itemType
+      )
+    : [...state.marketplace];
 
-      if (
-        neighbor?.owner &&
-        neighbor.owner !== currentPlayerId
-      ) {
-        buyerIds.add(neighbor.owner);
+  return listings.sort(
+    (a, b) => {
+      // Cheapest price per unit comes first.
+      if (a.pricePerUnit !== b.pricePerUnit) {
+        return a.pricePerUnit - b.pricePerUnit;
       }
+
+      // If prices are identical, oldest listing comes first.
+      return a.listedAt - b.listedAt;
     }
   );
+}
 
-  return state.players.filter(
-    (player) =>
-      buyerIds.has(player.id)
+export function canRemoveMarketplaceListing(
+  state: GameState,
+  listing: MarketplaceListing
+): boolean {
+  return (
+    state.turn.round >=
+    listing.listedRound + 5 // Requires 5 full turn rounds before player can remove their listing
   );
 }
 
@@ -820,6 +872,13 @@ function cloneState(
     economy: {
       ...state.economy
     },
+
+    marketplace:
+      state.marketplace.map(
+        (listing) => ({
+          ...listing,
+        })
+      ),
 
     players:
       state.players.map(
@@ -2256,6 +2315,372 @@ export const executeGameAction = (
       state: advanceTurn(nextState),
     };
   }
+
+    if (
+      move.type === 'listMarketplaceItem'
+    ) {
+      const itemType =
+        move.payload?.itemType;
+
+      const quantity =
+        move.payload?.quantity;
+
+      const pricePerUnit =
+        move.payload?.pricePerUnit;
+
+      if (
+        itemType !== 'wood'
+      ) {
+        return {
+          success: false,
+          reason: 'Invalid marketplace item',
+          state,
+        };
+      }
+
+      if (
+        typeof quantity !== 'number' ||
+        !Number.isInteger(quantity) ||
+        quantity <= 0
+      ) {
+        return {
+          success: false,
+          reason: 'Invalid marketplace quantity',
+          state,
+        };
+      }
+
+      if (
+        typeof pricePerUnit !== 'number' ||
+        !Number.isFinite(pricePerUnit) ||
+        pricePerUnit <= 0
+      ) {
+        return {
+          success: false,
+          reason: 'Invalid marketplace price',
+          state,
+        };
+      }
+
+      if (
+        currentPlayer.wood < quantity
+      ) {
+        return {
+          success: false,
+          reason: 'Not enough wood',
+          state,
+        };
+      }
+
+      const nextState =
+        cloneState(state);
+
+      const player =
+        nextState.players.find(
+          (player) =>
+            player.id === currentPlayer.id
+        );
+
+      if (!player) {
+        return {
+          success: false,
+          reason: 'Player not found',
+          state,
+        };
+      }
+
+      /*
+      * Remove the listed items from the player's inventory.
+      *
+      * These items now belong to the marketplace
+      * until the listing is purchased.
+      */
+      player.wood -= quantity;
+
+      const listing: MarketplaceListing = {
+        id:
+          `listing-${currentPlayer.id}-${Date.now()}-${Math.random()}`,
+        sellerPlayerId:
+          currentPlayer.id,
+        item: 'wood',
+        quantity,
+        pricePerUnit,
+        listedRound: state.turn.round,
+        listedAt: Date.now(),
+      };
+
+      nextState.marketplace.push(
+        listing
+      );
+
+      /*
+      * Marketplace actions NEVER end the turn.
+      */
+      return {
+        success: true,
+        state: nextState,
+      };
+    }
+
+    if (
+      move.type === 'buyMarketplaceListing'
+    ) {
+      const listingId =
+        move.payload?.listingId;
+
+      const quantity =
+        move.payload?.quantity;
+
+      if (
+        typeof listingId !== 'string'
+      ) {
+        return {
+          success: false,
+          reason: 'Invalid marketplace listing',
+          state,
+        };
+      }
+
+      if (
+        typeof quantity !== 'number' ||
+        !Number.isInteger(quantity) ||
+        quantity <= 0
+      ) {
+        return {
+          success: false,
+          reason: 'Invalid marketplace quantity',
+          state,
+        };
+      }
+
+      const listing =
+        state.marketplace.find(
+          (entry) =>
+            entry.id === listingId
+        );
+
+      if (!listing) {
+        return {
+          success: false,
+          reason: 'Marketplace listing not found',
+          state,
+        };
+      }
+
+      if (
+        listing.sellerPlayerId ===
+        currentPlayer.id
+      ) {
+        return {
+          success: false,
+          reason: 'You cannot buy your own listing',
+          state,
+        };
+      }
+
+      if (
+        quantity > listing.quantity
+      ) {
+        return {
+          success: false,
+          reason: 'Not enough items in listing',
+          state,
+        };
+      }
+
+      const totalCost =
+        quantity * listing.pricePerUnit;
+
+      if (
+        currentPlayer.gold < totalCost
+      ) {
+        return {
+          success: false,
+          reason: 'Not enough gold',
+          state,
+        };
+      }
+
+      const nextState =
+        cloneState(state);
+
+      const buyer =
+        nextState.players.find(
+          (player) =>
+            player.id === currentPlayer.id
+        );
+
+      const seller =
+        nextState.players.find(
+          (player) =>
+            player.id === listing.sellerPlayerId
+        );
+
+      if (!buyer || !seller) {
+        return {
+          success: false,
+          reason: 'Buyer or seller not found',
+          state,
+        };
+      }
+
+      buyer.gold -= totalCost;
+      buyer.wood += quantity;
+
+      seller.gold += totalCost;
+
+      const nextListing =
+        nextState.marketplace.find(
+          (entry) =>
+            entry.id === listing.id
+        );
+
+      if (!nextListing) {
+        return {
+          success: false,
+          reason: 'Marketplace listing not found',
+          state,
+        };
+      }
+
+      nextListing.quantity -= quantity;
+
+      /*
+      * Remove the listing when all items
+      * have been purchased.
+      */
+      if (
+        nextListing.quantity <= 0
+      ) {
+        nextState.marketplace =
+          nextState.marketplace.filter(
+            (entry) =>
+              entry.id !== listing.id
+          );
+      }
+
+      updateTotalGold(nextState);
+
+      /*
+      * Marketplace actions NEVER end the turn.
+      */
+      return {
+        success: true,
+        state: nextState,
+      };
+    }
+
+    if (
+      move.type === 'removeMarketplaceListing'
+    ) {
+      const listingId =
+        move.payload?.listingId;
+
+      if (
+        typeof listingId !== 'string'
+      ) {
+        return {
+          success: false,
+          reason: 'Invalid marketplace listing',
+          state,
+        };
+      }
+
+      const listing =
+        state.marketplace.find(
+          (entry) =>
+            entry.id === listingId
+        );
+
+      if (!listing) {
+        return {
+          success: false,
+          reason: 'Marketplace listing not found',
+          state,
+        };
+      }
+
+      if (
+        listing.sellerPlayerId !==
+        currentPlayer.id
+      ) {
+        return {
+          success: false,
+          reason:
+            'You can only remove your own listings',
+          state,
+        };
+      }
+
+      if (
+        !canRemoveMarketplaceListing(
+          state,
+          listing
+        )
+      ) {
+        return {
+          success: false,
+          reason:
+            'This listing is locked for 5 full rounds',
+          state,
+        };
+      }
+
+      const nextState =
+        cloneState(state);
+
+      const nextListing =
+        nextState.marketplace.find(
+          (entry) =>
+            entry.id === listing.id
+        );
+
+      if (!nextListing) {
+        return {
+          success: false,
+          reason:
+            'Marketplace listing not found',
+          state,
+        };
+      }
+
+      const seller =
+        nextState.players.find(
+          (player) =>
+            player.id === currentPlayer.id
+        );
+
+      if (!seller) {
+        return {
+          success: false,
+          reason: 'Player not found',
+          state,
+        };
+      }
+
+      /*
+      * Return the remaining items to the seller.
+      */
+      if (
+        nextListing.item === 'wood'
+      ) {
+        seller.wood += nextListing.quantity;
+      }
+
+      nextState.marketplace =
+        nextState.marketplace.filter(
+          (entry) =>
+            entry.id !== nextListing.id
+        );
+
+      /*
+      * Marketplace actions NEVER end the turn.
+      */
+      return {
+        success: true,
+        state: nextState,
+      };
+    }
 
   if (
     move.type === 'skip'
