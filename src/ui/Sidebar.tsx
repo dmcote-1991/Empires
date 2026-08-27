@@ -156,8 +156,18 @@ export function Sidebar({
                   return (
                     <div
                       key={listing.id}
-                      className="marketplace-listing"
+                      className={`marketplace-listing ${
+                        listing === getMarketplaceListings(gameState)[0]
+                          ? 'marketplace-listing-available'
+                          : 'marketplace-listing-waiting'
+                      }`}
                     >
+                      <div className="marketplace-listing-status">
+                        {listing === getMarketplaceListings(gameState)[0]
+                          ? 'AVAILABLE'
+                          : 'WAITING'}
+                      </div>
+
                       <div className="marketplace-listing-main">
                         <strong>{listing.quantity} Wood</strong>
 

@@ -154,10 +154,10 @@ background: #2e4736;
 /* Individual listing */
 
 .marketplace-listing {
+  position: relative;
+
   padding: 10px 12px;
 
-  background: #1e293b;
-  border: 1px solid #475569;
   border-radius: 7px;
 
   transition:
@@ -165,9 +165,56 @@ background: #2e4736;
     border-color 0.15s ease;
 }
 
-.marketplace-listing:hover {
+/* --------------------------------
+   Top listing - available to buy
+   -------------------------------- */
+
+.marketplace-listing-available {
+  background: #1e293b;
+  border: 1px solid #64748b;
+
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.marketplace-listing-available:hover {
   background: #263449;
-  border-color: #64748b;
+  border-color: #94a3b8;
+}
+
+/* --------------------------------
+   Listings below the top listing
+   -------------------------------- */
+
+.marketplace-listing-waiting {
+  background: #111827;
+  border: 1px solid #273244;
+  opacity: 0.65;
+}
+
+.marketplace-listing-waiting:hover {
+  opacity: 0.8;
+}
+
+/* Status label */
+
+.marketplace-listing-status {
+  margin-bottom: 4px;
+
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+/* Available status */
+
+.marketplace-listing-available .marketplace-listing-status {
+  color: #4ade80;
+}
+
+/* Waiting status */
+
+.marketplace-listing-waiting .marketplace-listing-status {
+  color: #64748b;
 }
 
 /* Quantity + price */
@@ -177,8 +224,6 @@ background: #2e4736;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-
-  margin-bottom: 4px;
 }
 
 .marketplace-listing-main strong {
@@ -196,6 +241,8 @@ background: #2e4736;
 /* Seller */
 
 .marketplace-listing-seller {
+  margin-top: 3px;
+
   font-size: 0.78rem;
   color: #94a3b8;
 }
