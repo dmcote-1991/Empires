@@ -262,6 +262,137 @@ background: #2e4736;
   font-size: 0.85rem;
 }
 
+/* --------------------------------
+   Marketplace buying
+   -------------------------------- */
+
+.marketplace-listing-available {
+  cursor: pointer;
+}
+
+.marketplace-listing-available:not(
+  .marketplace-listing-selected
+):hover {
+  transform: translateY(-1px);
+}
+
+.marketplace-listing-selected {
+  border-color: #94a3b8;
+  background: #263449;
+  cursor: default;
+}
+
+.marketplace-listing-selected
+  .marketplace-listing-status {
+  color: #4ade80;
+}
+
+/* Buy form */
+
+.marketplace-buy-form {
+  margin-top: 10px;
+  padding-top: 10px;
+
+  border-top: 1px solid #475569;
+
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.marketplace-buy-available {
+  font-size: 0.8rem;
+  color: #cbd5e1;
+}
+
+.marketplace-buy-form label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+
+  font-size: 0.85rem;
+}
+
+.marketplace-buy-form input {
+  width: 90px;
+  padding: 5px 7px;
+
+  border: 1px solid #475569;
+  border-radius: 5px;
+
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+/* Total cost */
+
+.marketplace-buy-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  padding: 7px 0;
+
+  font-size: 0.9rem;
+}
+
+.marketplace-buy-total strong {
+  color: #fbbf24;
+  font-size: 1rem;
+}
+
+/* Buyer's gold */
+
+.marketplace-buy-balance {
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+/* Buttons */
+
+.marketplace-buy-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.marketplace-buy-button,
+.marketplace-cancel-button {
+  flex: 1;
+
+  border: none;
+  border-radius: 6px;
+
+  padding: 7px 10px;
+
+  font-size: 0.85rem;
+}
+
+.marketplace-buy-button {
+  background: #16a34a;
+  color: white;
+}
+
+.marketplace-buy-button:hover:not(:disabled) {
+  background: #22c55e;
+}
+
+.marketplace-buy-button:disabled {
+  background: #374151;
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
+.marketplace-cancel-button {
+  background: #374151;
+  color: #e5e7eb;
+}
+
+.marketplace-cancel-button:hover {
+  background: #4b5563;
+}
+
 .button-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .player-card { border: 1px solid #374151; border-radius: 10px; padding: 8px; background: #0f172a; }
 .board-column { display: flex; flex-direction: column; gap: 12px; }

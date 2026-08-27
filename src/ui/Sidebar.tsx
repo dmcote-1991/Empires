@@ -24,6 +24,26 @@ export function Sidebar({
   const [showSellWoodForm, setShowSellWoodForm] = useState(false);
   const [sellWoodQuantity, setSellWoodQuantity] = useState('');
   const [sellWoodPrice, setSellWoodPrice] = useState('');
+  const [buyingListingId, setBuyingListingId] = useState<string | null>(null);
+  const [buyWoodQuantity, setBuyWoodQuantity] = useState('');
+
+  const marketplaceListings = getMarketplaceListings(gameState);
+
+  const currentPlayer =
+    gameState.players[
+      gameState.turn.currentPlayerIndex
+    ];
+
+  const buyingListing = marketplaceListings.find(
+    (listing) => listing.id === buyingListingId
+  );
+
+  const buyQuantity = Number(buyWoodQuantity);
+
+  const buyTotalCost =
+    buyingListing
+      ? buyQuantity * buyingListing.pricePerUnit
+      : 0;
 
   return (
     <aside className="sidebar">
@@ -146,25 +166,49 @@ export function Sidebar({
               </div>
             )}
 
-            {gameState.marketplace.length > 0 && (
+            {marketplaceListings.length > 0 && (
               <div className="marketplace-listings">
-                {getMarketplaceListings(gameState).map((listing) => {
+                {marketplaceListings.map((listing, index) => {
                   const seller = gameState.players.find(
                     (player) => player.id === listing.sellerPlayerId
                   );
+
+                  const isAvailable = index === 0;
+
+                  const isOwnListing =
+                    listing.sellerPlayerId === currentPlayer.id;
+
+                  const isBuying =
+                    buyingListingId === listing.id;
 
                   return (
                     <div
                       key={listing.id}
                       className={`marketplace-listing ${
-                        listing === getMarketplaceListings(gameState)[0]
+                        isAvailable
                           ? 'marketplace-listing-available'
                           : 'marketplace-listing-waiting'
+                      } ${
+                        isBuying
+                          ? 'marketplace-listing-selected'
+                          : ''
                       }`}
+                      onClick={() => {
+                        if (
+                          isAvailable &&
+                          !isOwnListing &&
+                          !isBuying
+                        ) {
+                          setBuyingListingId(listing.id);
+                          setBuyWoodQuantity('');
+                        }
+                      }}
                     >
                       <div className="marketplace-listing-status">
-                        {listing === getMarketplaceListings(gameState)[0]
-                          ? 'AVAILABLE'
+                        {isAvailable
+                          ? isOwnListing
+                            ? 'YOUR LISTING'
+                            : 'AVAILABLE TO BUY'
                           : 'WAITING'}
                       </div>
 
@@ -179,6 +223,91 @@ export function Sidebar({
                       <div className="marketplace-listing-seller">
                         Seller: {seller?.name ?? 'Unknown'}
                       </div>
+
+                      {isBuying && (
+                        <div
+                          className="marketplace-buy-form"
+                          onClick={(event) =>
+                            event.stopPropagation()
+                          }
+                        >
+                          <div className="marketplace-buy-available">
+                            Available: {listing.quantity} Wood
+                          </div>
+
+                          <label>
+                            Quantity:
+                            <input
+                              type="number"
+                              min="1"
+                              max={listing.quantity}
+                              step="1"
+                              value={buyWoodQuantity}
+                              onChange={(event) =>
+                                setBuyWoodQuantity(
+                                  event.target.value
+                                )
+                              }
+                            />
+                          </label>
+
+                          <div className="marketplace-buy-total">
+                            <span>Total Cost:</span>
+                            <strong>
+                              {buyTotalCost} Gold
+                            </strong>
+                          </div>
+
+                          <div className="marketplace-buy-balance">
+                            Your Gold: {currentPlayer.gold}
+                          </div>
+
+                          <div className="marketplace-buy-buttons">
+                            <button
+                              className="marketplace-buy-button"
+                              disabled={
+                                !Number.isInteger(buyQuantity) ||
+                                buyQuantity <= 0 ||
+                                buyQuantity > listing.quantity ||
+                                buyTotalCost > currentPlayer.gold
+                              }
+                              onClick={() => {
+                                if (
+                                  !Number.isInteger(buyQuantity) ||
+                                  buyQuantity <= 0 ||
+                                  buyQuantity > listing.quantity ||
+                                  buyTotalCost > currentPlayer.gold
+                                ) {
+                                  return;
+                                }
+
+                                onMarketplaceAction({
+                                  type: 'buyMarketplaceListing',
+                                  payload: {
+                                    listingId: listing.id,
+                                    quantity: buyQuantity,
+                                  },
+                                });
+
+                                setBuyingListingId(null);
+                                setBuyWoodQuantity('');
+                              }}
+                            >
+                              Buy
+                            </button>
+
+                            <button
+                              className="marketplace-cancel-button"
+                              onClick={() => {
+                                setBuyingListingId(null);
+                                setBuyWoodQuantity('');
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
