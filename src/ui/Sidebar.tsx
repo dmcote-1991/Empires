@@ -168,15 +168,21 @@ export function Sidebar({
 
             {marketplaceListings.length > 0 && (
               <div className="marketplace-listings">
-                {marketplaceListings.map((listing, index) => {
+                {marketplaceListings.map((listing) => {
                   const seller = gameState.players.find(
                     (player) => player.id === listing.sellerPlayerId
                   );
 
-                  const isAvailable = index === 0;
-
                   const isOwnListing =
                     listing.sellerPlayerId === currentPlayer.id;
+
+                  const firstBuyableListing = marketplaceListings.find(
+                    (entry) =>
+                      entry.sellerPlayerId !== currentPlayer.id
+                  );
+
+                  const isAvailable =
+                    listing.id === firstBuyableListing?.id;
 
                   const isBuying =
                     buyingListingId === listing.id;
