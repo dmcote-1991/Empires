@@ -135,6 +135,12 @@ export function BoardView({
           lumberYard.territoryId === territory.id
       );
 
+    const waterProcessingPlant =
+      gameState.board.waterProcessingPlants.find(
+        (waterProcessingPlant) =>
+          waterProcessingPlant.territoryId === territory.id
+      );
+
     const isSettlementOption =
       isStartingTurn &&
       canPlaceSettlement(
@@ -342,9 +348,11 @@ export function BoardView({
               ? '🏘️'
               : lumberYard
                 ? '🪵'
-                : territory.isMine
-                  ? '⛏️'
-                  : ''}
+                : waterProcessingPlant
+                  ? '💧'
+                  : territory.isMine
+                    ? '⛏️'
+                    : ''}
         </button>
 
         {(territory.isSite || territory.hasBridge) && (

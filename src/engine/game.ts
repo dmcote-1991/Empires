@@ -354,7 +354,10 @@ export function canEstablishSite(
     if (
       neighbors.some(
         (neighbor) =>
-          neighbor.owner !== playerId ||
+          (
+            neighbor.biome !== 'river' &&
+            neighbor.owner !== playerId
+          ) ||
           neighbor.hasBridge ||
           neighbor.isSite
       )
