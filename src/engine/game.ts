@@ -691,18 +691,20 @@ export function canBuildBridge(
     return false;
   }
 
-  // Bridges cannot be built directly next to another bridge.
-  const adjacentBridge = territory.neighbors.some(
-    (neighborId) => {
-      const neighbor = state.board.territories.find(
-        (entry) => entry.id === neighborId
-      );
+  // Bridges cannot be built if any of the surrounding
+  // 8 territories contains another bridge or site.
+  const surroundingSiteOrBridge =
+    getEightNeighbors(
+      territory,
+      state.board.territories,
+      state.board.dimensions
+    ).some(
+      (neighbor) =>
+        neighbor.hasBridge ||
+        neighbor.isSite
+    );
 
-      return neighbor?.hasBridge === true;
-    }
-  );
-
-  if (adjacentBridge) {
+  if (surroundingSiteOrBridge) {
     return false;
   }
 
