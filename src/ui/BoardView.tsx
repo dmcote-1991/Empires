@@ -28,6 +28,7 @@ interface BoardViewProps {
       | 'removeMarketplaceListing'
       | 'produce'
       | 'produceWood'
+      | 'produceWater'
       | 'establishSettlement'
       | 'growSettlement'
       | 'evacuateSettlement'

@@ -98,6 +98,7 @@ export const createInitialGameState = (options: {
     color: playerConfig.color,
     gold: 0,
     wood: 0,
+    water: 0,
     eliminated: false,
     territoryIds: [],
     capitalSettlementId: null,
@@ -552,6 +553,9 @@ const LUMBER_YARD_BASE_PRODUCTION = 100;
 const LUMBER_YARD_BONUS = 1.5;
 const LUMBER_YARD_COST = 1000;
 
+const WATER_PROCESSING_PLANT_BASE_PRODUCTION = 100;
+const WATER_PROCESSING_PLANT_BONUS = 1.5;
+
 const SETTLEMENT_COST = 2000;
 
 function getLumberYardCount(
@@ -561,6 +565,16 @@ function getLumberYardCount(
   return state.board.lumberYards.filter(
     (lumberYard) =>
       lumberYard.owner === playerId
+  ).length;
+}
+
+function getWaterProcessingPlantCount(
+  state: GameState,
+  playerId: string
+): number {
+  return state.board.waterProcessingPlants.filter(
+    (waterProcessingPlant) =>
+      waterProcessingPlant.owner === playerId
   ).length;
 }
 
@@ -589,6 +603,30 @@ function getLumberYardProduction(
     Math.pow(
       LUMBER_YARD_BONUS,
       lumberYardCount - 1
+    );
+
+  return Math.round(production);
+}
+
+function getWaterProcessingPlantProduction(
+  state: GameState,
+  playerId: string
+): number {
+  const waterProcessingPlantCount =
+    getWaterProcessingPlantCount(
+      state,
+      playerId
+    );
+
+  if (waterProcessingPlantCount <= 0) {
+    return 0;
+  }
+
+  const production =
+    WATER_PROCESSING_PLANT_BASE_PRODUCTION *
+    Math.pow(
+      WATER_PROCESSING_PLANT_BONUS,
+      waterProcessingPlantCount - 1
     );
 
   return Math.round(production);
@@ -1300,6 +1338,26 @@ export const getAvailableActions = (
               currentPlayerId
             )
           } Wood)`,
+      });
+    }
+
+    const waterProcessingPlant =
+      state.board.waterProcessingPlants.find(
+        (waterProcessingPlant) =>
+          waterProcessingPlant.territoryId === territory.id &&
+          waterProcessingPlant.owner === currentPlayer.id
+      );
+
+    if (waterProcessingPlant) {
+      actions.push({
+        type: 'produceWater',
+        label:
+          `Produce Water (+${
+            getWaterProcessingPlantProduction(
+              state,
+              currentPlayerId
+            )
+          } Water)`,
       });
     }
 
@@ -2373,6 +2431,61 @@ export const executeGameAction = (
 
     if (player) {
       player.wood += woodProduced;
+    }
+
+    return {
+      success: true,
+      state: advanceTurn(nextState),
+    };
+  }
+
+  if (
+    move.type === 'produceWater' &&
+    move.targetTerritoryId
+  ) {
+    const target =
+      state.board.territories.find(
+        (territory) =>
+          territory.id === move.targetTerritoryId
+      );
+
+    const waterProcessingPlant =
+      state.board.waterProcessingPlants.find(
+        (entry) =>
+          entry.territoryId === move.targetTerritoryId
+      );
+
+    if (
+      !target ||
+      target.owner !== currentPlayer.id ||
+      !target.isSite ||
+      !waterProcessingPlant ||
+      waterProcessingPlant.owner !== currentPlayer.id
+    ) {
+      return {
+        success: false,
+        reason: 'Invalid produce water action',
+        state,
+      };
+    }
+
+    const nextState =
+      cloneState(state);
+
+    const waterProduced =
+      getWaterProcessingPlantProduction(
+        nextState,
+        currentPlayerId
+      );
+
+    const player =
+      nextState.players.find(
+        (player) =>
+          player.id === currentPlayer.id
+      );
+
+    if (player) {
+      player.water += waterProduced;
     }
 
     return {

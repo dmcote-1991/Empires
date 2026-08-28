@@ -127,6 +127,7 @@ function App() {
       | 'removeMarketplaceListing'
       | 'produce'
       | 'produceWood'
+      | 'produceWater'
       | 'establishSettlement'
       | 'growSettlement'
       | 'evacuateSettlement'

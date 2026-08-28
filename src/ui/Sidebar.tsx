@@ -349,9 +349,11 @@ export function Sidebar({
 
               <div>Color: {player.color}</div>
 
-              <div>Gold: {player.gold}</div>
+              <div>Gold: {player.gold ?? 0}</div>
 
-              <div>Wood: {player.wood}</div>
+              <div>Wood: {player.wood ?? 0}</div>
+
+              <div>Water: {player.water ?? 0}</div>
 
               <div>
                 Territories: {player.territoryIds.length}

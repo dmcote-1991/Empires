@@ -11,6 +11,7 @@ export interface Player {
   color: PlayerColor;
   gold: number;
   wood: number;
+  water: number;
   eliminated: boolean;
   territoryIds: string[];
   capitalSettlementId: string | null;
@@ -56,7 +57,7 @@ export interface WaterProcessingPlant {
 export interface MarketplaceListing {
   id: string;
   sellerPlayerId: string;
-  item: 'wood';
+  item: 'wood' | 'water';
   quantity: number;
   pricePerUnit: number;
   listedRound: number; // Determines when the 5-turn rotation restriction expires
@@ -112,6 +113,7 @@ export interface Move {
     | 'removeMarketplaceListing'
     | 'produce'
     | 'produceWood'
+    | 'produceWater'
     | 'establishSettlement'
     | 'growSettlement'
     | 'evacuateSettlement'
@@ -134,6 +136,7 @@ export type ActionName =
   | 'removeMarketplaceListing'
   | 'produce'
   | 'produceWood'
+  | 'produceWater'
   | 'establishSettlement'
   | 'growSettlement'
   | 'evacuateSettlement'
