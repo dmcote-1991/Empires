@@ -9,6 +9,7 @@ import {
   PlayerConfig, 
   Settlement, 
   LumberYard,
+  WaterProcessingPlant,
   MarketplaceListing,
   Territory 
 } from '../types';
@@ -111,6 +112,7 @@ export const createInitialGameState = (options: {
     })),
     settlements: [],
     lumberYards: [],
+    waterProcessingPlants: [],
     dimensions: board.dimensions,
   };
 
@@ -273,7 +275,8 @@ export function hasSite(
 
 export type SiteType =
   | 'settlement'
-  | 'lumberYard';
+  | 'lumberYard'
+  | 'waterProcessingPlant';
 
 export function canEstablishSite(
   board: Board,
@@ -291,6 +294,81 @@ export function canEstablishSite(
     return false;
   }
 
+  const neighbors = getEightNeighbors(
+    territory,
+    board.territories,
+    board.dimensions
+  );
+
+  // --------------------------------------------------------
+  // WATER PROCESSING PLANT
+  // --------------------------------------------------------
+
+  if (siteType === 'waterProcessingPlant') {
+    /*
+    * The Water Processing Plant must be placed
+    * on forest or field.
+    */
+    if (
+      territory.biome !== 'forest' &&
+      territory.biome !== 'field'
+    ) {
+      return false;
+    }
+
+    /*
+    * All 8 surrounding territories must exist.
+    *
+    * This prevents Water Processing Plants from
+    * being placed along the edge of the board.
+    */
+    if (neighbors.length !== 8) {
+      return false;
+    }
+
+    /*
+    * The plant must touch a river cardinally.
+    *
+    * territory.neighbors contains only cardinal
+    * neighbors, so diagonal rivers do not count.
+    */
+    const touchesRiverCardinally =
+      territory.neighbors.some((neighborId) => {
+        const neighbor = board.territories.find(
+          (entry) => entry.id === neighborId
+        );
+
+        return neighbor?.biome === 'river';
+      });
+
+    if (!touchesRiverCardinally) {
+      return false;
+    }
+
+    /*
+    * All 8 surrounding territories must be owned
+    * by the player.
+    *
+    * River biomes are allowed here.
+    */
+    if (
+      neighbors.some(
+        (neighbor) =>
+          neighbor.owner !== playerId ||
+          neighbor.hasBridge ||
+          neighbor.isSite
+      )
+    ) {
+      return false;
+    }
+
+    return true;
+  }
+
+  // --------------------------------------------------------
+  // SETTLEMENT / LUMBER YARD
+  // --------------------------------------------------------
+
   // Target biome requirement.
   if (
     siteType === 'settlement' &&
@@ -306,12 +384,6 @@ export function canEstablishSite(
   ) {
     return false;
   }
-
-  const neighbors = getEightNeighbors(
-    territory,
-    board.territories,
-    board.dimensions
-  );
 
   // All 8 surrounding territories must exist.
   if (neighbors.length !== 8) {
@@ -372,6 +444,19 @@ export function canEstablishLumberYard(
     territory,
     playerId,
     'lumberYard'
+  );
+}
+
+export function canEstablishWaterProcessingPlant(
+  board: Board,
+  territory: Territory,
+  playerId: string
+): boolean {
+  return canEstablishSite(
+    board,
+    territory,
+    playerId,
+    'waterProcessingPlant'
   );
 }
 
@@ -923,6 +1008,13 @@ function cloneState(
             ...lumberYard,
           })
         ),
+
+      waterProcessingPlants:
+        state.board.waterProcessingPlants.map(
+          (waterProcessingPlant) => ({
+            ...waterProcessingPlant,
+          })
+        ),
     },
   };
 }
@@ -1170,6 +1262,19 @@ export const getAvailableActions = (
           lumberYardCost === 0
             ? 'Establish Lumber Yard (Free)'
             : `Establish Lumber Yard (Cost: ${lumberYardCost} Wood)`,
+      });
+    }
+
+    if (
+      canEstablishWaterProcessingPlant(
+        state.board,
+        territory,
+        currentPlayer.id
+      )
+    ) {
+      actions.push({
+        type: 'establishWaterProcessingPlant',
+        label: 'Establish Water Processing Plant',
       });
     }
 
@@ -2050,6 +2155,64 @@ export const executeGameAction = (
 
     nextState.board.lumberYards.push(
       lumberYard
+    );
+
+    nextState.board.territories =
+      nextState.board.territories.map(
+        (territory) =>
+          territory.id === target.id
+            ? {
+                ...territory,
+                isSite: true,
+              }
+            : territory
+      );
+
+    return {
+      success: true,
+      state: advanceTurn(nextState),
+    };
+  }
+
+  if (
+    move.type === 'establishWaterProcessingPlant' &&
+    move.targetTerritoryId
+  ) {
+    const target =
+      state.board.territories.find(
+        (territory) =>
+          territory.id === move.targetTerritoryId
+      );
+
+    if (
+      !target ||
+      !canEstablishWaterProcessingPlant(
+        state.board,
+        target,
+        currentPlayer.id
+      )
+    ) {
+      return {
+        success: false,
+        reason:
+          'Invalid water processing plant location',
+        state,
+      };
+    }
+
+    const waterProcessingPlant:
+      WaterProcessingPlant = {
+      id:
+        `water-processing-plant-${currentPlayer.id}-${Date.now()}`,
+      territoryId: target.id,
+      owner: currentPlayer.id,
+    };
+
+    const nextState =
+      cloneState(state);
+
+    nextState.board.waterProcessingPlants.push(
+      waterProcessingPlant
     );
 
     nextState.board.territories =

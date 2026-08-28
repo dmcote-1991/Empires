@@ -33,6 +33,7 @@ interface BoardViewProps {
       | 'evacuateSettlement'
       | 'tearDownSettlement'
       | 'establishLumberYard'
+      | 'establishWaterProcessingPlant'
       | 'buildBridge'
       | 'skip',
     territoryId: string,

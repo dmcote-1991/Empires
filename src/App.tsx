@@ -132,6 +132,7 @@ function App() {
       | 'evacuateSettlement'
       | 'tearDownSettlement'
       | 'establishLumberYard'
+      | 'establishWaterProcessingPlant'
       | 'buildBridge'
       | 'skip',
     territoryId: string,

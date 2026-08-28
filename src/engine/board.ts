@@ -153,6 +153,7 @@ export function generateBoard(territoryCount: number, rng: Rng): Board {
     mines: [],
     settlements: [],
     lumberYards: [],
+    waterProcessingPlants: [],
     dimensions: { rows, cols },
   };
 }
