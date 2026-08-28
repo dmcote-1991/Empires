@@ -139,6 +139,12 @@ function App() {
     buyerPlayerId?: string,
     payload?: Record<string, unknown>
   ) => {
+    console.log('ACTION CLICKED:', {
+      type,
+      territoryId,
+      payload,
+    });
+
     if (!gameState) {
       return;
     }

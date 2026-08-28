@@ -1010,7 +1010,7 @@ function cloneState(
         ),
 
       waterProcessingPlants:
-        state.board.waterProcessingPlants.map(
+        (state.board.waterProcessingPlants ?? []).map(
           (waterProcessingPlant) => ({
             ...waterProcessingPlant,
           })
