@@ -2610,7 +2610,8 @@ export const executeGameAction = (
         move.payload?.pricePerUnit;
 
       if (
-        itemType !== 'wood'
+        itemType !== 'wood' &&
+        itemType !== 'water'
       ) {
         return {
           success: false,
@@ -2643,12 +2644,15 @@ export const executeGameAction = (
         };
       }
 
-      if (
-        currentPlayer.wood < quantity
-      ) {
+      const availableItemQuantity =
+        itemType === 'wood'
+          ? currentPlayer.wood
+          : currentPlayer.water;
+
+      if (availableItemQuantity < quantity) {
         return {
           success: false,
-          reason: 'Not enough wood',
+          reason: `Not enough ${itemType}`,
           state,
         };
       }
@@ -2676,14 +2680,18 @@ export const executeGameAction = (
       * These items now belong to the marketplace
       * until the listing is purchased.
       */
-      player.wood -= quantity;
+      if (itemType === 'wood') {
+        player.wood -= quantity;
+      } else {
+        player.water -= quantity;
+      }
 
       const listing: MarketplaceListing = {
         id:
           `listing-${currentPlayer.id}-${Date.now()}-${Math.random()}`,
         sellerPlayerId:
           currentPlayer.id,
-        item: 'wood',
+        item: itemType as 'wood' | 'water',
         quantity,
         pricePerUnit,
         listedRound: state.turn.round,
@@ -2806,7 +2814,12 @@ export const executeGameAction = (
       }
 
       buyer.gold -= totalCost;
-      buyer.wood += quantity;
+
+      if (listing.item === 'wood') {
+        buyer.wood += quantity;
+      } else {
+        buyer.water += quantity;
+      }
 
       seller.gold += totalCost;
 

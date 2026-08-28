@@ -21,11 +21,18 @@ export function Sidebar({
   onMarketplaceAction,
 }: SidebarProps) {
   const [marketplaceExpanded, setMarketplaceExpanded] = useState(false);
+
   const [showSellWoodForm, setShowSellWoodForm] = useState(false);
+  const [showSellWaterForm, setShowSellWaterForm] = useState(false);
+
   const [sellWoodQuantity, setSellWoodQuantity] = useState('');
   const [sellWoodPrice, setSellWoodPrice] = useState('');
+
+  const [sellWaterQuantity, setSellWaterQuantity] = useState('');
+  const [sellWaterPrice, setSellWaterPrice] = useState('');
+
   const [buyingListingId, setBuyingListingId] = useState<string | null>(null);
-  const [buyWoodQuantity, setBuyWoodQuantity] = useState('');
+  const [buyQuantityInput, setBuyQuantityInput] = useState('');
 
   const marketplaceListings = getMarketplaceListings(gameState);
 
@@ -38,7 +45,7 @@ export function Sidebar({
     (listing) => listing.id === buyingListingId
   );
 
-  const buyQuantity = Number(buyWoodQuantity);
+  const buyQuantity = Number(buyQuantityInput);
 
   const buyTotalCost =
     buyingListing
@@ -80,6 +87,16 @@ export function Sidebar({
               }
             >
               Sell Wood
+            </button>
+
+            <button
+              onClick={() =>
+                setShowSellWaterForm(
+                  (showing) => !showing
+                )
+              }
+            >
+              Sell Water
             </button>
 
             {showSellWoodForm && (
@@ -166,6 +183,90 @@ export function Sidebar({
               </div>
             )}
 
+            {showSellWaterForm && (
+              <div className="marketplace-sell-form">
+                <div>
+                  Available Water:{' '}
+                  {gameState.players.find(
+                    (player) =>
+                      player.id ===
+                      gameState.turn.order[
+                        gameState.turn.currentPlayerIndex
+                      ]
+                  )?.water ?? 0}
+                </div>
+
+                <label>
+                  Quantity:
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={sellWaterQuantity}
+                    onChange={(event) =>
+                      setSellWaterQuantity(
+                        event.target.value
+                      )
+                    }
+                  />
+                </label>
+
+                <label>
+                  Gold per unit:
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={sellWaterPrice}
+                    onChange={(event) =>
+                      setSellWaterPrice(
+                        event.target.value
+                      )
+                    }
+                  />
+                </label>
+
+                <button
+                  onClick={() => {
+                    const quantity =
+                      Number(sellWaterQuantity);
+
+                    const pricePerUnit =
+                      Number(sellWaterPrice);
+
+                    if (
+                      !Number.isInteger(quantity) ||
+                      quantity <= 0
+                    ) {
+                      return;
+                    }
+
+                    if (
+                      !Number.isFinite(pricePerUnit) ||
+                      pricePerUnit <= 0
+                    ) {
+                      return;
+                    }
+
+                    onMarketplaceAction({
+                      type: 'listMarketplaceItem',
+                      payload: {
+                        itemType: 'water',
+                        quantity,
+                        pricePerUnit,
+                      },
+                    });
+
+                    setSellWaterQuantity('');
+                    setSellWaterPrice('');
+                    setShowSellWaterForm(false);
+                  }}
+                >
+                  List on Marketplace
+                </button>
+              </div>
+            )}
+
             {marketplaceListings.length > 0 && (
               <div className="marketplace-listings">
                 {marketplaceListings.map((listing) => {
@@ -206,7 +307,7 @@ export function Sidebar({
                           !isBuying
                         ) {
                           setBuyingListingId(listing.id);
-                          setBuyWoodQuantity('');
+                          setBuyQuantityInput('');
                         }
                       }}
                     >
@@ -219,10 +320,14 @@ export function Sidebar({
                       </div>
 
                       <div className="marketplace-listing-main">
-                        <strong>{listing.quantity} Wood</strong>
+                        <strong>
+                          {listing.quantity}{' '}
+                          {listing.item === 'water' ? 'Water' : 'Wood'}
+                        </strong>
 
                         <span className="marketplace-price">
-                          {listing.pricePerUnit} Gold / Wood
+                          {listing.pricePerUnit} Gold /{' '}
+                          {listing.item === 'water' ? 'Water' : 'Wood'}
                         </span>
                       </div>
 
@@ -238,7 +343,8 @@ export function Sidebar({
                           }
                         >
                           <div className="marketplace-buy-available">
-                            Available: {listing.quantity} Wood
+                            Available: {listing.quantity}{' '}
+                            {listing.item === 'water' ? 'Water' : 'Wood'}
                           </div>
 
                           <label>
@@ -248,9 +354,9 @@ export function Sidebar({
                               min="1"
                               max={listing.quantity}
                               step="1"
-                              value={buyWoodQuantity}
+                              value={buyQuantityInput}
                               onChange={(event) =>
-                                setBuyWoodQuantity(
+                                setBuyQuantityInput(
                                   event.target.value
                                 )
                               }
@@ -296,7 +402,7 @@ export function Sidebar({
                                 });
 
                                 setBuyingListingId(null);
-                                setBuyWoodQuantity('');
+                                setBuyQuantityInput('');
                               }}
                             >
                               Buy
@@ -306,7 +412,7 @@ export function Sidebar({
                               className="marketplace-cancel-button"
                               onClick={() => {
                                 setBuyingListingId(null);
-                                setBuyWoodQuantity('');
+                                setBuyQuantityInput('');
                               }}
                             >
                               Cancel
@@ -321,7 +427,8 @@ export function Sidebar({
             )}
 
             {(gameState.marketplace?.length ?? 0) === 0 &&
-              !showSellWoodForm && (
+              !showSellWoodForm &&
+              !showSellWaterForm && (
                 <div className="marketplace-empty">
                   Nothing is currently being sold.
                 </div>
