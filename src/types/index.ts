@@ -54,6 +54,12 @@ export interface WaterProcessingPlant {
   owner: string;
 }
 
+export interface Farmland {
+  id: string;
+  territoryId: string;
+  owner: string;
+}
+
 export interface MarketplaceListing {
   id: string;
   sellerPlayerId: string;
@@ -70,6 +76,7 @@ export interface Board {
   settlements: Settlement[];
   lumberYards: LumberYard[];
   waterProcessingPlants: WaterProcessingPlant[];
+  farmlands: Farmland[];
   dimensions: {
     rows: number;
     cols: number;
@@ -120,6 +127,7 @@ export interface Move {
     | 'tearDownSettlement'
     | 'establishLumberYard'
     | 'establishWaterProcessingPlant'
+    | 'establishFarmland'
     | 'buildBridge'
     | 'skip';
   targetTerritoryId?: string;
@@ -143,6 +151,7 @@ export type ActionName =
   | 'tearDownSettlement'
   | 'establishLumberYard'
   | 'establishWaterProcessingPlant'
+  | 'establishFarmland'
   | 'buildBridge'
   | 'skip';
   

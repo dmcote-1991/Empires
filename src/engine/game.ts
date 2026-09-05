@@ -10,6 +10,7 @@ import {
   Settlement, 
   LumberYard,
   WaterProcessingPlant,
+  Farmland,
   MarketplaceListing,
   Territory 
 } from '../types';
@@ -114,6 +115,7 @@ export const createInitialGameState = (options: {
     settlements: [],
     lumberYards: [],
     waterProcessingPlants: [],
+    farmlands: [],
     dimensions: board.dimensions,
   };
 
@@ -277,7 +279,8 @@ export function hasSite(
 export type SiteType =
   | 'settlement'
   | 'lumberYard'
-  | 'waterProcessingPlant';
+  | 'waterProcessingPlant'
+  | 'farmland';
 
 export function canEstablishSite(
   board: Board,
@@ -300,6 +303,63 @@ export function canEstablishSite(
     board.territories,
     board.dimensions
   );
+
+    // --------------------------------------------------------
+  // FARMLAND
+  // --------------------------------------------------------
+
+  if (siteType === 'farmland') {
+    /*
+     * Farmland can only be established on field biomes.
+     */
+    if (territory.biome !== 'field') {
+      return false;
+    }
+
+    /*
+     * All 8 surrounding territories must exist.
+     *
+     * This prevents Farmland from being established
+     * along the edge of the board.
+     */
+    if (neighbors.length !== 8) {
+      return false;
+    }
+
+    /*
+     * The player must own all 8 surrounding territories.
+     */
+    if (
+      neighbors.some(
+        (neighbor) =>
+          neighbor.owner !== playerId
+      )
+    ) {
+      return false;
+    }
+
+    /*
+     * No OTHER type of site may exist in the
+     * surrounding territories.
+     *
+     * Farmland itself is allowed, so multiple
+     * Farmland sites can be adjacent.
+     */
+    if (
+      neighbors.some(
+        (neighbor) =>
+          neighbor.isSite &&
+          !board.farmlands.some(
+            (farmland) =>
+              farmland.territoryId === neighbor.id
+          )
+      )
+    ) {
+      return false;
+    }
+
+    return true;
+  }
 
   // --------------------------------------------------------
   // WATER PROCESSING PLANT
@@ -461,6 +521,19 @@ export function canEstablishWaterProcessingPlant(
     territory,
     playerId,
     'waterProcessingPlant'
+  );
+}
+
+export function canEstablishFarmland(
+  board: Board,
+  territory: Territory,
+  playerId: string
+): boolean {
+  return canEstablishSite(
+    board,
+    territory,
+    playerId,
+    'farmland'
   );
 }
 
@@ -1058,6 +1131,13 @@ function cloneState(
             ...waterProcessingPlant,
           })
         ),
+
+      farmlands:
+        (state.board.farmlands ?? []).map(
+          (farmland) => ({
+            ...farmland,
+          })
+        ),
     },
   };
 }
@@ -1318,6 +1398,19 @@ export const getAvailableActions = (
       actions.push({
         type: 'establishWaterProcessingPlant',
         label: 'Establish Water Processing Plant',
+      });
+    }
+
+    if (
+      canEstablishFarmland(
+        state.board,
+        territory,
+        currentPlayer.id
+      )
+    ) {
+      actions.push({
+        type: 'establishFarmland',
+        label: 'Establish Farmland',
       });
     }
 
@@ -2276,6 +2369,62 @@ export const executeGameAction = (
 
     nextState.board.waterProcessingPlants.push(
       waterProcessingPlant
+    );
+
+    nextState.board.territories =
+      nextState.board.territories.map(
+        (territory) =>
+          territory.id === target.id
+            ? {
+                ...territory,
+                isSite: true,
+              }
+            : territory
+      );
+
+    return {
+      success: true,
+      state: advanceTurn(nextState),
+    };
+  }
+
+  if (
+    move.type === 'establishFarmland' &&
+    move.targetTerritoryId
+  ) {
+    const target =
+      state.board.territories.find(
+        (territory) =>
+          territory.id === move.targetTerritoryId
+      );
+
+    if (
+      !target ||
+      !canEstablishFarmland(
+        state.board,
+        target,
+        currentPlayer.id
+      )
+    ) {
+      return {
+        success: false,
+        reason: 'Invalid farmland location',
+        state,
+      };
+    }
+
+    const farmland: Farmland = {
+      id:
+        `farmland-${currentPlayer.id}-${Date.now()}`,
+      territoryId: target.id,
+      owner: currentPlayer.id,
+    };
+
+    const nextState =
+      cloneState(state);
+
+    nextState.board.farmlands.push(
+      farmland
     );
 
     nextState.board.territories =

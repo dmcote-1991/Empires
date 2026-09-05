@@ -35,6 +35,7 @@ interface BoardViewProps {
       | 'tearDownSettlement'
       | 'establishLumberYard'
       | 'establishWaterProcessingPlant'
+      | 'establishFarmland'
       | 'buildBridge'
       | 'skip',
     territoryId: string,
@@ -140,6 +141,12 @@ export function BoardView({
       gameState.board.waterProcessingPlants.find(
         (waterProcessingPlant) =>
           waterProcessingPlant.territoryId === territory.id
+      );
+
+    const farmland =
+      gameState.board.farmlands.find(
+        (farmland) =>
+          farmland.territoryId === territory.id
       );
 
     const isSettlementOption =
@@ -351,9 +358,11 @@ export function BoardView({
                 ? '🪵'
                 : waterProcessingPlant
                   ? '💧'
-                  : territory.isMine
-                    ? '⛏️'
-                    : ''}
+                  : farmland
+                    ? '🌾'
+                    : territory.isMine
+                      ? '⛏️'
+                      : ''}
         </button>
 
         {(territory.isSite || territory.hasBridge) && (
@@ -377,6 +386,20 @@ export function BoardView({
             {lumberYard && (
               <>
                 <strong>Lumber Yard</strong>
+                <span>Owner: {owner?.name}</span>
+              </>
+            )}
+
+            {waterProcessingPlant && (
+              <>
+                <strong>Water Processing Plant</strong>
+                <span>Owner: {owner?.name}</span>
+              </>
+            )}
+
+            {farmland && (
+              <>
+                <strong>Farmland</strong>
                 <span>Owner: {owner?.name}</span>
               </>
             )}
