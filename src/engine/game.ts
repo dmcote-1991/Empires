@@ -2861,7 +2861,8 @@ export const executeGameAction = (
 
       if (
         itemType !== 'wood' &&
-        itemType !== 'water'
+        itemType !== 'water' &&
+        itemType !== 'food'
       ) {
         return {
           success: false,
@@ -2897,7 +2898,9 @@ export const executeGameAction = (
       const availableItemQuantity =
         itemType === 'wood'
           ? currentPlayer.wood
-          : currentPlayer.water;
+          : itemType === 'water'
+            ? currentPlayer.water
+            : currentPlayer.food;
 
       if (availableItemQuantity < quantity) {
         return {
@@ -2932,8 +2935,10 @@ export const executeGameAction = (
       */
       if (itemType === 'wood') {
         player.wood -= quantity;
-      } else {
+      } else if (itemType === 'water') {
         player.water -= quantity;
+      } else {
+        player.food -= quantity;
       }
 
       const listing: MarketplaceListing = {
@@ -2941,7 +2946,7 @@ export const executeGameAction = (
           `listing-${currentPlayer.id}-${Date.now()}-${Math.random()}`,
         sellerPlayerId:
           currentPlayer.id,
-        item: itemType as 'wood' | 'water',
+        item: itemType as 'wood' | 'water' | 'food',
         quantity,
         pricePerUnit,
         listedRound: state.turn.round,
@@ -3066,9 +3071,11 @@ export const executeGameAction = (
       buyer.gold -= totalCost;
 
       if (listing.item === 'wood') {
-        buyer.wood += quantity;
+        buyer.wood = (buyer.wood ?? 0) + quantity;
+      } else if (listing.item === 'water') {
+        buyer.water = (buyer.water ?? 0) + quantity;
       } else {
-        buyer.water += quantity;
+        buyer.food = (buyer.food ?? 0) + quantity;
       }
 
       seller.gold += totalCost;
@@ -3205,10 +3212,12 @@ export const executeGameAction = (
       /*
       * Return the remaining items to the seller.
       */
-      if (
-        nextListing.item === 'wood'
-      ) {
+      if (nextListing.item === 'wood') {
         seller.wood += nextListing.quantity;
+      } else if (nextListing.item === 'water') {
+        seller.water += nextListing.quantity;
+      } else {
+        seller.food += nextListing.quantity;
       }
 
       nextState.marketplace =

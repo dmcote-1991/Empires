@@ -64,7 +64,7 @@ export interface Farmland {
 export interface MarketplaceListing {
   id: string;
   sellerPlayerId: string;
-  item: 'wood' | 'water';
+  item: 'wood' | 'water' | 'food';
   quantity: number;
   pricePerUnit: number;
   listedRound: number; // Determines when the 5-turn rotation restriction expires

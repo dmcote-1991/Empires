@@ -13,7 +13,7 @@ interface SidebarProps {
   onMarketplaceAction: (move: Move) => void;
 }
 
-type MarketplaceTab = 'wood' | 'water';
+type MarketplaceTab = 'wood' | 'water' | 'food';
 
 export function Sidebar({
   gameState,
@@ -29,12 +29,16 @@ export function Sidebar({
 
   const [showSellWoodForm, setShowSellWoodForm] = useState(false);
   const [showSellWaterForm, setShowSellWaterForm] = useState(false);
+  const [showSellFoodForm, setShowSellFoodForm] = useState(false);
 
   const [sellWoodQuantity, setSellWoodQuantity] = useState('');
   const [sellWoodPrice, setSellWoodPrice] = useState('');
 
   const [sellWaterQuantity, setSellWaterQuantity] = useState('');
   const [sellWaterPrice, setSellWaterPrice] = useState('');
+
+  const [sellFoodQuantity, setSellFoodQuantity] = useState('');
+  const [sellFoodPrice, setSellFoodPrice] = useState('');
 
   const [buyingListingId, setBuyingListingId] = useState<string | null>(null);
   const [buyQuantityInput, setBuyQuantityInput] = useState('');
@@ -78,6 +82,7 @@ export function Sidebar({
     // Close any open forms when switching tabs.
     setShowSellWoodForm(false);
     setShowSellWaterForm(false);
+    setShowSellFoodForm(false);
     setBuyingListingId(null);
     setBuyQuantityInput('');
   };
@@ -136,6 +141,17 @@ export function Sidebar({
                 onClick={() => switchMarketplaceTab('water')}
               >
                 Water
+              </button>
+
+              <button
+                className={
+                  marketplaceTab === 'food'
+                    ? 'marketplace-tab marketplace-tab-active'
+                    : 'marketplace-tab'
+                }
+                onClick={() => switchMarketplaceTab('food')}
+              >
+                Food
               </button>
             </div>
 
@@ -315,6 +331,94 @@ export function Sidebar({
               </>
             )}
 
+            {/* ==================== FOOD TAB ==================== */}
+
+            {marketplaceTab === 'food' && (
+              <>
+                <button
+                  onClick={() =>
+                    setShowSellFoodForm((showing) => !showing)
+                  }
+                >
+                  Sell Food
+                </button>
+
+                {showSellFoodForm && (
+                  <div className="marketplace-sell-form">
+                    <div>
+                      Available Food:{' '}
+                      {currentPlayer.food ?? 0}
+                    </div>
+
+                    <label>
+                      Quantity:
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={sellFoodQuantity}
+                        onChange={(event) =>
+                          setSellFoodQuantity(event.target.value)
+                        }
+                      />
+                    </label>
+
+                    <label>
+                      Gold per unit:
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={sellFoodPrice}
+                        onChange={(event) =>
+                          setSellFoodPrice(event.target.value)
+                        }
+                      />
+                    </label>
+
+                    <button
+                      onClick={() => {
+                        const quantity =
+                          Number(sellFoodQuantity);
+
+                        const pricePerUnit =
+                          Number(sellFoodPrice);
+
+                        if (
+                          !Number.isInteger(quantity) ||
+                          quantity <= 0
+                        ) {
+                          return;
+                        }
+
+                        if (
+                          !Number.isFinite(pricePerUnit) ||
+                          pricePerUnit <= 0
+                        ) {
+                          return;
+                        }
+
+                        onMarketplaceAction({
+                          type: 'listMarketplaceItem',
+                          payload: {
+                            itemType: 'food',
+                            quantity,
+                            pricePerUnit,
+                          },
+                        });
+
+                        setSellFoodQuantity('');
+                        setSellFoodPrice('');
+                        setShowSellFoodForm(false);
+                      }}
+                    >
+                      List on Marketplace
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+
             {/* ==================== LISTINGS ==================== */}
 
             {currentTabListings.length > 0 && (
@@ -370,14 +474,18 @@ export function Sidebar({
                           {listing.quantity}{' '}
                           {listing.item === 'water'
                             ? 'Water'
-                            : 'Wood'}
+                            : listing.item === 'food'
+                              ? 'Food'
+                              : 'Wood'}
                         </strong>
 
                         <span className="marketplace-price">
                           {listing.pricePerUnit} Gold /{' '}
                           {listing.item === 'water'
                             ? 'Water'
-                            : 'Wood'}
+                            : listing.item === 'food'
+                              ? 'Food'
+                              : 'Wood'}
                         </span>
                       </div>
 
@@ -396,7 +504,9 @@ export function Sidebar({
                             Available: {listing.quantity}{' '}
                             {listing.item === 'water'
                               ? 'Water'
-                              : 'Wood'}
+                              : listing.item === 'food'
+                                ? 'Food'
+                                : 'Wood'}
                           </div>
 
                           <label>
@@ -483,7 +593,9 @@ export function Sidebar({
               !(
                 marketplaceTab === 'wood'
                   ? showSellWoodForm
-                  : showSellWaterForm
+                  : marketplaceTab === 'water'
+                    ? showSellWaterForm
+                    : showSellFoodForm
               ) && (
                 <div className="marketplace-empty">
                   No {marketplaceTab} is currently being sold.
