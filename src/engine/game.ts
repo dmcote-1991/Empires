@@ -100,6 +100,7 @@ export const createInitialGameState = (options: {
     gold: 0,
     wood: 0,
     water: 0,
+    food: 0,
     eliminated: false,
     territoryIds: [],
     capitalSettlementId: null,
@@ -625,11 +626,13 @@ function getMineProduction(
 const LUMBER_YARD_BASE_PRODUCTION = 100;
 const LUMBER_YARD_BONUS = 1.5;
 const LUMBER_YARD_COST = 1000;
-
-const WATER_PROCESSING_PLANT_BASE_PRODUCTION = 100;
-const WATER_PROCESSING_PLANT_BONUS = 1.5;
-
 const SETTLEMENT_COST = 2000;
+
+const WATER_PROCESSING_PLANT_BASE_PRODUCTION = 50;
+const WATER_PROCESSING_PLANT_BONUS = 1.8;
+
+const FARMLAND_BASE_PRODUCTION = 10;
+const FARMLAND_BONUS = 1.3;
 
 function getLumberYardCount(
   state: GameState,
@@ -700,6 +703,29 @@ function getWaterProcessingPlantProduction(
     Math.pow(
       WATER_PROCESSING_PLANT_BONUS,
       waterProcessingPlantCount - 1
+    );
+
+  return Math.round(production);
+}
+
+export function getFarmlandProduction(
+  state: GameState,
+  playerId: string
+): number {
+  const farmlandCount =
+    state.board.farmlands.filter(
+      (farmland) => farmland.owner === playerId
+    ).length;
+
+  if (farmlandCount === 0) {
+    return 0;
+  }
+
+  const production =
+    FARMLAND_BASE_PRODUCTION *
+    Math.pow(
+      FARMLAND_BONUS, 
+      farmlandCount - 1
     );
 
   return Math.round(production);
@@ -1451,6 +1477,26 @@ export const getAvailableActions = (
               currentPlayerId
             )
           } Water)`,
+      });
+    }
+
+    const farmland =
+      state.board.farmlands.find(
+        (farmland) =>
+          farmland.territoryId === territory.id &&
+          farmland.owner === currentPlayer.id
+      );
+
+    if (farmland) {
+      actions.push({
+        type: 'produceFood',
+        label:
+          `Produce Food (+${
+            getFarmlandProduction(
+              state,
+              currentPlayerId
+            )
+          } Food)`,
       });
     }
 
@@ -2635,6 +2681,61 @@ export const executeGameAction = (
 
     if (player) {
       player.water += waterProduced;
+    }
+
+    return {
+      success: true,
+      state: advanceTurn(nextState),
+    };
+  }
+
+  if (
+    move.type === 'produceFood' &&
+    move.targetTerritoryId
+  ) {
+    const target =
+      state.board.territories.find(
+        (territory) =>
+          territory.id === move.targetTerritoryId
+      );
+
+    const farmland =
+      state.board.farmlands.find(
+        (entry) =>
+          entry.territoryId === move.targetTerritoryId
+      );
+
+    if (
+      !target ||
+      target.owner !== currentPlayer.id ||
+      !target.isSite ||
+      !farmland ||
+      farmland.owner !== currentPlayer.id
+    ) {
+      return {
+        success: false,
+        reason: 'Invalid produce food action',
+        state,
+      };
+    }
+
+    const nextState =
+      cloneState(state);
+
+    const foodProduced =
+      getFarmlandProduction(
+        nextState,
+        currentPlayerId
+      );
+
+    const player =
+      nextState.players.find(
+        (player) =>
+          player.id === currentPlayer.id
+      );
+
+    if (player) {
+      player.food = (player.food ?? 0) + foodProduced;
     }
 
     return {

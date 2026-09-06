@@ -12,6 +12,7 @@ export interface Player {
   gold: number;
   wood: number;
   water: number;
+  food: number;
   eliminated: boolean;
   territoryIds: string[];
   capitalSettlementId: string | null;
@@ -121,6 +122,7 @@ export interface Move {
     | 'produce'
     | 'produceWood'
     | 'produceWater'
+    | 'produceFood'
     | 'establishSettlement'
     | 'growSettlement'
     | 'evacuateSettlement'
@@ -145,6 +147,7 @@ export type ActionName =
   | 'produce'
   | 'produceWood'
   | 'produceWater'
+  | 'produceFood'
   | 'establishSettlement'
   | 'growSettlement'
   | 'evacuateSettlement'

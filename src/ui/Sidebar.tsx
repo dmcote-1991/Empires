@@ -521,6 +521,8 @@ export function Sidebar({
 
               <div>Water: {player.water ?? 0}</div>
 
+              <div>Food: {player.food ?? 0}</div>
+
               <div>
                 Territories: {player.territoryIds.length}
               </div>

@@ -29,6 +29,7 @@ interface BoardViewProps {
       | 'produce'
       | 'produceWood'
       | 'produceWater'
+      | 'produceFood'
       | 'establishSettlement'
       | 'growSettlement'
       | 'evacuateSettlement'

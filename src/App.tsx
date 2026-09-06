@@ -128,12 +128,14 @@ function App() {
       | 'produce'
       | 'produceWood'
       | 'produceWater'
+      | 'produceFood'
       | 'establishSettlement'
       | 'growSettlement'
       | 'evacuateSettlement'
       | 'tearDownSettlement'
       | 'establishLumberYard'
       | 'establishWaterProcessingPlant'
+      | 'establishFarmland'
       | 'buildBridge'
       | 'skip',
     territoryId: string,
